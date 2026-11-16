@@ -36,6 +36,7 @@ class SecurityConfig {
                         "/login.html",
                         "/login",
                         "/h2-console/**",
+                        "/api/**",
                         "/error"
                     ).permitAll()
                     .anyRequest().authenticated()

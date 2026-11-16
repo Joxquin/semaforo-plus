@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Centro de Control · Semáforo+ (TECSUP Arequipa)</title>
-<meta name="description" content="Semáforo+: Sistema adaptativo de control de tráfico en tiempo real con 2 semáforos y 2 ESP32-CAM en Av. Ejército (TECSUP · ODS 11).">
+<title>Centro de control de tráfico · Semáforo+ (TECSUP)</title>
+<meta name="description" content="Semáforo+: Sistema adaptativo de innovación y movilidad urbana (TECSUP Arequipa · ODS 11 · ESP32).">
 <link rel="icon" href="assets/icons/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12,7 +12,7 @@
 <link rel="stylesheet" href="css/styles.css">
 <script>try{var p=JSON.parse(localStorage.getItem('vs_prefs')||'{}');if(p.theme)document.documentElement.dataset.theme=p.theme;if(p.density)document.documentElement.dataset.density=p.density}catch(e){}</script>
 </head>
-<body data-page="dashboard" data-title="Cruce Adaptativo en Tiempo Real" data-subtitle="Intersección Av. Ejército × Calle Los Arces · 2 Semáforos + 2 ESP32-CAM · TECSUP ODS 11">
+<body data-page="dashboard" data-title="Centro de control de tráfico" data-subtitle="Red vial adaptativa de Arequipa (Av. Ejército × Calle Los Arces) · TECSUP · ODS 11">
 <a class="skip-link" href="#content">Saltar al contenido</a>
 <div class="app">
 <aside class="sidebar" id="sidebar" aria-label="Navegación lateral"></aside>
@@ -20,92 +20,58 @@
 <div class="main">
 <header class="topbar" id="topbar"></header>
 <main class="content" id="content" tabindex="-1">
-
 <div class="toolbar no-print">
-  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-    <span class="pill" style="background:rgba(34,197,94,0.15);border-color:#22c55e;color:#22c55e;font-weight:700;"><i class="dot" style="background:#22c55e"></i>ESP32: 100% LOCAL (INMUNE A INTERNET)</span>
-    <span class="pill" id="powerPill"><i class="dot" style="background:#eab308"></i>Solar LiFePO4: 13.6V (96%)</span>
-  </div>
+  <div class="field"><label for="zoneSel">Zona</label><select id="zoneSel"></select></div>
+  <div class="field"><label for="periodSel">Periodo</label><select id="periodSel"></select></div>
   <div class="toolbar-spacer"></div>
-  <button class="btn btn-outline" id="emergBtn" type="button" style="border-color:#ef4444;color:#ef4444;"><i data-lucide="siren"></i>Simular Ambulancia en Av. Ejército</button>
-  <button class="btn" id="refreshBtn" type="button"><i data-lucide="refresh-cw"></i>Sincronizar ESP32</button>
+  <button class="btn" id="refreshBtn" type="button"><i data-lucide="refresh-cw"></i>Actualizar telemetría IoT</button>
 </div>
 
-<!-- KPIs Superiores Reales -->
-<section class="kpis" id="kpis" aria-label="Indicadores del Cruce"></section>
+<div id="iotStatusBanner" class="alert warn" style="display: none; margin-bottom: 1.25rem;">
+  <div style="display: flex; align-items: flex-start; gap: 0.75rem;">
+    <i data-lucide="radio-off" style="color: var(--yellow); font-size: 1.4rem; flex-shrink: 0; margin-top: 2px;"></i>
+    <div>
+      <strong>Dispositivos IoT Desconectados / Sin telemetría:</strong>
+      <span>No se detecta enlace activo con el microcontrolador central ESP32 ni con las cámaras ESP32-CAM (Poste Norte / Poste Este). No se muestran datos simulados. Carga el firmware en tus microcontroladores desde la carpeta <code>firmware/</code> para iniciar la transmisión real.</span>
+    </div>
+  </div>
+</div>
 
+<section class="kpis" id="kpis" aria-label="Indicadores principales"></section>
 <div class="grid">
-  <!-- Cruce en Vivo y los 2 Semáforos -->
-  <article class="card span-7">
-    <div class="card-head">
-      <div>
-        <h2>Estado de los 2 Semáforos Físicos</h2>
-        <p>Control adaptativo directo por microcontrolador central ESP32 (Límites: 15s mín – 60s máx)</p>
-      </div>
-      <div id="emergAlertBadge"></div>
-    </div>
-    
-    <div style="padding:16px;background:var(--bg-card-sub,#131922);border-radius:8px;border:1px solid var(--border,#263140);margin-bottom:16px;">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;" id="lightsGrid">
-        <!-- Renderizado dinámicamente por dashboard.js -->
-      </div>
-    </div>
-
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px;background:rgba(56,189,248,0.06);border:1px solid rgba(56,189,248,0.2);border-radius:6px;">
-      <div style="display:flex;align-items:center;gap:8px;">
-        <i data-lucide="shield-check" style="color:#38bdf8;"></i>
-        <span style="font-size:13px;"><strong>Seguridad Peatonal:</strong> Fase de despeje obligatorio de 10s activada en cada transición de carril.</span>
-      </div>
-      <span class="badge good">Protegido</span>
-    </div>
+  <article class="card span-8" data-widget="map">
+    <div class="card-head"><div><h2>Red vial monitoreada (Av. Ejército × Calle Los Arces)</h2><p>Esquema del cruce real · Color de vía según telemetría del ESP32</p></div><div class="legend" id="mapLegend"></div></div>
+    <div class="map-scroll"><div id="map" class="map-wrap"></div></div>
+    <div id="mapDetail" class="map-detail" aria-live="polite"></div>
   </article>
-
-  <!-- 2 Cámaras ESP32-CAM y Detección Machine Learning -->
-  <article class="card span-5">
-    <div class="card-head">
-      <div>
-        <h2>2× ESP32-CAM (Visión Artificial)</h2>
-        <p>Inferencia On-Edge en lo alto de cada poste</p>
-      </div>
-      <a class="btn btn-sm" href="camaras.html">Ver detalle</a>
-    </div>
-
-    <div id="camsGrid" style="display:flex;flex-direction:column;gap:12px;">
-      <!-- Renderizado dinámicamente por dashboard.js -->
-    </div>
+  <div class="span-4 stack">
+    <article class="card" data-widget="pred">
+      <div class="card-head"><div><h2>Estado de Visión On-Edge (ESP32-CAM)</h2><p>Inferencia TinyML en postes</p></div><a class="btn btn-sm" href="camaras.html">Ver cámaras</a></div>
+      <ul class="list" id="predList"></ul>
+    </article>
+    <article class="card" data-widget="inc">
+      <div class="card-head"><div><h2>Decisiones y Eventos (ESP32)</h2></div><a class="btn btn-sm" href="incidencias.html">Ver registro</a></div>
+      <ul class="list" id="incList"></ul>
+    </article>
+  </div>
+  <article class="card span-7" data-widget="flow">
+    <div class="card-head"><div><h2>Flujo vehicular real</h2><p id="flowSub">Vehículos detectados por ESP32-CAM</p></div></div>
+    <div class="chart-box"><canvas id="flowChart" aria-label="Gráfico de flujo vehicular real" role="img"></canvas></div>
   </article>
-
-  <!-- Respaldo Energético Solar y Autonomía -->
-  <article class="card span-6">
-    <div class="card-head">
-      <div>
-        <h2>Respaldo Energético Solar Híbrido</h2>
-        <p>Garantía de operatividad continua ante apagones en Av. Ejército</p>
-      </div>
-      <span class="badge good">Autónomo</span>
-    </div>
-    <div id="solarBox" style="padding:4px 0;">
-      <!-- Renderizado dinámicamente -->
-    </div>
+  <article class="card span-5" data-widget="dist">
+    <div class="card-head"><div><h2>Distribución vehicular real</h2><p id="distSub">Autos, Combis, Motos y Peatones</p></div></div>
+    <div class="chart-box"><canvas id="distChart" aria-label="Distribución vehicular" role="img"></canvas></div>
   </article>
-
-  <!-- Eventos y Registro de Decisiones del ESP32 -->
-  <article class="card span-6">
-    <div class="card-head">
-      <div>
-        <h2>Registro de Decisiones Locales (ESP32)</h2>
-        <p>Eventos de conmutación de verde, emergencias y sensores</p>
-      </div>
-      <a class="btn btn-sm" href="incidencias.html">Ver historial</a>
-    </div>
-    <ul class="list" id="incList"></ul>
+  <article class="card span-12" data-widget="lights">
+    <div class="card-head"><div><h2>Estado de los 2 Semáforos Físicos (ESP32)</h2><p>Fase adaptativa en curso y tiempos asignados</p></div><a class="btn btn-sm" href="intersecciones.html">Ver detalle</a></div>
+    <div class="table-wrap"><table id="lightsTbl"><caption class="sr-only">Estado de los semáforos físicos</caption><thead><tr><th>Semáforo Físico</th><th>Carril / Vía</th><th>Fase actual</th><th>Tiempo restante</th><th>Modo</th><th>Estado de Enlace</th><th><span class="sr-only">Acciones</span></th></tr></thead><tbody></tbody></table></div>
   </article>
 </div>
-
 </main>
 </div>
 </div>
 <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="js/data.js"></script>
 <script src="js/common.js"></script>
 <script src="js/dashboard.js"></script>

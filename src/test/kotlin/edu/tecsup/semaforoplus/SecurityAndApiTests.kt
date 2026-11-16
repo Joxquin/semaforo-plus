@@ -97,4 +97,66 @@ class SecurityAndApiTests {
             .andExpect(jsonPath("$[0].id").value("SEM-01"))
             .andExpect(jsonPath("$[1].id").value("SEM-02"))
     }
+
+    @Test
+    fun `iot devices can post telemetry and camera detection directly without session`() {
+        // 1. ESP32-CAM POST detection
+        val camPayload = """
+            {
+              "camId": "CAM-01",
+              "carril": "Av. Ejército",
+              "autos": 7,
+              "combis": 2,
+              "motos": 1,
+              "peatones": 3,
+              "unidadesEmergencia": 0,
+              "latencyMs": 138,
+              "fps": 20
+            }
+        """.trimIndent()
+
+        mockMvc.perform(
+            post("/api/v1/iot/cam/detection")
+                .contentType("application/json")
+                .content(camPayload)
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.status").value("ACK"))
+            .andExpect(jsonPath("$.camId").value("CAM-01"))
+            .andExpect(jsonPath("$.online").value(true))
+
+        // 2. ESP32 Central POST telemetry
+        val espPayload = """
+            {
+              "deviceId": "ESP32-CENTRAL-01",
+              "nodeCode": "NODE-01",
+              "sem1State": "GREEN",
+              "sem2State": "RED",
+              "remainingSeconds": 28,
+              "sem1AllocatedSeconds": 40,
+              "sem2AllocatedSeconds": 20,
+              "batteryVoltage": 13.55,
+              "batteryPercent": 94,
+              "powerSource": "HÍBRIDO (Solar LiFePO4)",
+              "emergencyActive": false
+            }
+        """.trimIndent()
+
+        mockMvc.perform(
+            post("/api/v1/iot/esp32/telemetry")
+                .contentType("application/json")
+                .content(espPayload)
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.status").value("ACK"))
+            .andExpect(jsonPath("$.centralStatus").value("AUTÓNOMO_LOCAL_ACTIVO"))
+
+        // 3. Verify node now reports online IoT data
+        mockMvc.perform(get("/api/v1/realtime/node"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.iotConnected").value(true))
+            .andExpect(jsonPath("$.solarBackup.batteryPercent").value(94))
+            .andExpect(jsonPath("$.solarBackup.batteryVoltage").value(13.55))
+            .andExpect(jsonPath("$.cameras[0].classification.autos").value(7))
+    }
 }

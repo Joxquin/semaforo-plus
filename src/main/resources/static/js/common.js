@@ -137,12 +137,9 @@
   VS.onSecond = f => secFns.push(f);
   VS.lastUpdate = Date.now();
   VS.tick = () => {
-    const off = OFFS[VS.prefs.scenario] || 0;
     VS.intersections.forEach(i => {
-      if (i.status === 'Sin datos') return;       // sin lecturas: se mantiene el último valor
-      const target = clamp(i.base + off, 5, 98);
-      const d = Math.round((target - i.cong) * .2 + (Math.random() - .5) * 5);
-      i.cong = clamp(i.cong + clamp(d, -3, 3), 5, 98); D.derive(i);
+      if (i.status === 'Sin datos' || !i.iotConnected) return;
+      D.derive(i);
       if (i.cong >= 85 && !i.alerted && VS.prefs.notif.critical && VS.prefs.notif.toasts) { i.alerted = true; VS.toast(`${i.id}: la congestión supera el 85 %. Revisa la intersección.`, 'warn'); }
       if (i.cong < 80) i.alerted = false;
     });

@@ -23,10 +23,11 @@ data class Esp32Cam(
     val poleLocation: String,
     val carrilObserved: String,
     val ipAddress: String,
-    val status: String = "TRANSMITIENDO_ML", // TRANSMITIENDO_ML, EN_LINEA, OFFLINE
+    val status: String = "DESCONECTADA (Sin señal)", // TRANSMITIENDO_ML, EN_LINEA, DESCONECTADA (Sin señal)
     val resolution: String = "1024x768 (XGA)",
-    val fps: Int = 20,
-    val inferenceLatencyMs: Int = 145,
-    val confidenceScore: Double = 94.8,
-    val classification: VehicleClassification = VehicleClassification()
+    val fps: Int = 0,
+    val inferenceLatencyMs: Int = 0,
+    val confidenceScore: Double = 0.0,
+    val classification: VehicleClassification = VehicleClassification(),
+    val isOnline: Boolean = false
 )

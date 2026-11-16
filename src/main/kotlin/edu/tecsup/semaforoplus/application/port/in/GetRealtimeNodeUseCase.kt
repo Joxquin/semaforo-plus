@@ -12,5 +12,17 @@ interface GetRealtimeNodeUseCase {
     fun triggerEmergencyPriority(camId: String): TrafficNode
     fun resetEmergencyPriority(): TrafficNode
     fun updateCamDetection(camId: String, classification: VehicleClassification): Esp32Cam
+    fun updateCamDetection(camId: String, classification: VehicleClassification, latencyMs: Int, fps: Int): Esp32Cam
     fun updateSolarTelemetry(batteryPercent: Int, voltage: Double, powerSource: String): TrafficNode
+    fun updateEsp32Telemetry(
+        sem1State: String,
+        sem2State: String,
+        remainingSec: Int,
+        sem1Allocated: Int,
+        sem2Allocated: Int,
+        batteryVoltage: Double,
+        batteryPercent: Int,
+        powerSource: String,
+        emergencyActive: Boolean
+    ): TrafficNode
 }

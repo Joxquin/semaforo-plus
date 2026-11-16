@@ -25,7 +25,7 @@
     const i = VS.byId(x.int);
     VS.render(box, `<div class="card-head"><div><h2>${x.id}</h2><p>${esc(x.type)}</p></div>${VS.prioBadge(x.prio)}</div>
       <p class="ic-desc">${esc(x.desc)}</p>
-      <dl class="dl" style="grid-template-columns:1fr 1fr"><div><dt>Estado</dt><dd>${VS.incBadge(x.status)}</dd></div><div><dt>Registrada</dt><dd>${VS.dt(x.ts)}<span class="sub">${VS.ago(x.ts)}</span></dd></div><div><dt>Intersección</dt><dd>${i ? esc(i.name) : x.int}</dd></div><div><dt>Origen</dt><dd>${esc(x.source || 'Sistema (simulado)')}</dd></div></dl>
+      <dl class="dl" style="grid-template-columns:1fr 1fr"><div><dt>Estado</dt><dd>${VS.incBadge(x.status)}</dd></div><div><dt>Registrada</dt><dd>${VS.dt(x.ts)}<span class="sub">${VS.ago(x.ts)}</span></dd></div><div><dt>Intersección</dt><dd>${i ? esc(i.name) : x.int}</dd></div><div><dt>Origen</dt><dd>${esc(x.source || 'Hardware IoT')}</dd></div></dl>
       <div class="ic-actions">${x.status === 'Nueva' ? '<button class="btn" data-act="Revisada" type="button"><i data-lucide="eye"></i>Marcar como revisada</button>' : ''}${x.status !== 'Resuelta' ? '<button class="btn btn-primary" data-act="Resuelta" type="button"><i data-lucide="check"></i>Marcar como resuelta</button>' : '<button class="btn" data-act="Nueva" type="button"><i data-lucide="rotate-ccw"></i>Reabrir incidencia</button>'}<a class="btn" href="detalle-interseccion.html?id=${x.int}"><i data-lucide="map-pin"></i>Ver intersección</a></div>`);
   }
   const renderAll = () => { kpis(); table(); detail(); };

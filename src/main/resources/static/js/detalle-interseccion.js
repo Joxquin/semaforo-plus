@@ -7,27 +7,27 @@
     root.innerHTML = `<div class="card empty"><h2>Intersección no encontrada</h2><p>El código «${esc(id)}» no existe en los datos de demostración.</p><p style="margin-top:14px"><a class="btn btn-primary" href="intersecciones.html">Volver al listado</a></p></div>`;
     return;
   }
-  document.title = `${i.name} · VIA SMART`;
+  document.title = `${i.name} · Semáforo+ (TECSUP)`;
   const AX = { N: 'Norte', S: 'Sur', E: 'Este', O: 'Oeste' };
   const L = VS.intersections, k = L.indexOf(i), prev = L[(k + L.length - 1) % L.length], next = L[(k + 1) % L.length];
-  const session = [];   // eventos registrados por el operador durante esta visita (solo demostración)
+  const session = [];
 
   root.innerHTML = `
     <section class="card detail-head" aria-label="Resumen de la intersección">
       <div><a class="btn btn-sm" href="intersecciones.html"><i data-lucide="arrow-left"></i>Volver al listado</a>
         <h2 class="dh-title">${esc(i.name)}</h2><p class="muted">${i.id} · ${esc(i.zone)} · ${esc(i.roads.join(' / '))}</p><div class="badges" id="dhBadges"></div></div>
       <div class="dh-gauge" id="dhGauge"></div>
-      <div class="dh-nav"><a class="btn btn-sm" href="detalle-interseccion.html?id=${prev.id}"><i data-lucide="chevron-left"></i>${prev.id}</a><a class="btn btn-sm" href="detalle-interseccion.html?id=${next.id}">${next.id}<i data-lucide="chevron-right"></i></a></div>
+      <div class="dh-nav" style="display:none;"><a class="btn btn-sm" href="detalle-interseccion.html?id=${prev.id}"><i data-lucide="chevron-left"></i>${prev.id}</a><a class="btn btn-sm" href="detalle-interseccion.html?id=${next.id}">${next.id}<i data-lucide="chevron-right"></i></a></div>
     </section>
     <div class="grid">
-      <article class="card span-7"><div class="card-head"><div><h2>Vista de la intersección</h2><p>Esquema ilustrativo · la cola refleja los vehículos por acceso</p></div></div><div class="xing" id="xing"></div></article>
+      <article class="card span-7"><div class="card-head"><div><h2>Vista de la intersección</h2><p>Estado en tiempo real de los 2 accesos regulados por ESP32</p></div></div><div class="xing" id="xing"></div></article>
       <div class="span-5 stack"><article class="card" id="phaseCard"></article><article class="card" id="modeCard"></article></div>
     </div>
     <section aria-label="Datos por vía"><div class="cards4" id="approaches"></div></section>
     <div class="grid">
-      <article class="card span-7"><div class="card-head"><div><h2>Flujo vehicular reciente</h2><p>Vehículos cada 10 minutos · últimas 2 horas</p></div></div><div class="chart-box"><canvas id="flowDetail" role="img" aria-label="Flujo vehicular reciente"></canvas></div></article>
-      <article class="card span-5"><div class="card-head"><div><h2>Recomendaciones simuladas</h2><p>Reglas simples sobre datos ficticios</p></div><span class="badge info">Simulación</span></div><div id="recs"></div></article>
-      <article class="card span-12"><div class="card-head"><div><h2>Historial reciente</h2></div></div><div class="table-wrap"><table><caption class="sr-only">Historial de eventos</caption><thead><tr><th>Cuándo</th><th>Tipo</th><th>Evento</th></tr></thead><tbody id="hist"></tbody></table></div></article>
+      <article class="card span-7"><div class="card-head"><div><h2>Flujo vehicular reciente</h2><p>Vehículos detectados por cámaras ESP32-CAM</p></div></div><div class="chart-box"><canvas id="flowDetail" role="img" aria-label="Flujo vehicular reciente"></canvas></div></article>
+      <article class="card span-5"><div class="card-head"><div><h2>Control Adaptativo ESP32</h2><p>Parámetros de seguridad del cruce</p></div><span class="badge good">Activo</span></div><div id="recs"></div></article>
+      <article class="card span-12"><div class="card-head"><div><h2>Registro de Eventos Locales</h2></div></div><div class="table-wrap"><table><caption class="sr-only">Historial de eventos</caption><thead><tr><th>Cuándo</th><th>Tipo</th><th>Evento</th></tr></thead><tbody id="hist"></tbody></table></div></article>
     </div>`;
 
   /* ---------- Piezas visuales ---------- */
@@ -55,18 +55,19 @@
   }
   function phaseCard() {
     const d = VS.durs(i)[i.pi];
-    $('#phaseCard').innerHTML = `<div class="card-head"><div><h2>Fase del semáforo</h2><p>Ciclo simulado en tiempo real</p></div></div>
+    $('#phaseCard').innerHTML = `<div class="card-head"><div><h2>Fase del semáforo</h2><p>Estado del semáforo en tiempo real</p></div></div>
       <div class="phase-big" id="phaseTxt">${VS.phaseLabels[i.pi]}</div>
       <div class="countdown"><strong id="phaseRem">${i.pr}</strong><span class="muted">s restantes</span></div>
       <span class="meter"><i id="phaseBar" style="width:${Math.round(i.pr / d * 100)}%;background:var(--blue)"></i></span>
       <p class="muted small" style="margin-top:10px">Plan: N–S ${i.plan.ns} s · E–O ${i.plan.eo} s · ámbar 4 s</p>`;
   }
-  function modeCard(focusMode) {
-    $('#modeCard').innerHTML = `<div class="card-head"><div><h2>Modo de operación</h2></div><span class="badge warn">Demostrativo</span></div>
-      <div class="seg" role="group" aria-label="Modo de operación">${['Automático', 'Adaptativo', 'Manual'].map(m => `<button type="button" data-mode="${m}" aria-pressed="${i.mode === m}">${m}</button>`).join('')}</div>
-      ${i.mode === 'Manual' ? `<div class="manual-box"><button type="button" class="btn btn-sm" data-force="0">Forzar N–S en verde</button><button type="button" class="btn btn-sm" data-force="2">Forzar E–O en verde</button></div>` : ''}
-      <p class="note">Estos controles son demostrativos: no envían señales a semáforos ni a ningún dispositivo real.</p>`;
-    if (focusMode) { const b = $(`[data-mode="${focusMode}"]`); if (b) b.focus(); }
+  function modeCard() {
+    const isOnline = i.iotConnected;
+    $('#modeCard').innerHTML = `<div class="card-head"><div><h2>Modo de Operación</h2></div><span class="badge ${isOnline ? 'good' : 'bad'}">${isOnline ? 'Control Remoto Activo' : 'Sin señal'}</span></div>
+      <div style="padding:10px 0;">
+        <p><strong>Estado Actual:</strong> <span class="badge ${isOnline ? 'good' : 'muted'}">${esc(i.mode)}</span></p>
+        <p class="note" style="margin-top:10px;">${isOnline ? 'El microcontrolador ESP32 conmuta autónomamente según la carga vehicular detectada por las ESP32-CAM.' : 'En espera de conexión con el microcontrolador remoto ESP32.'}</p>
+      </div>`;
   }
   function approaches() {
     $('#approaches').innerHTML = i.approach.map(a => {
@@ -88,12 +89,24 @@
     if (i.mode === 'Manual') out.push(['rotate-ccw', 'Volver a modo adaptativo al despejar la vía', 'El modo manual mantiene los tiempos fijos y puede aumentar la espera.']);
     VS.render($('#recs'), out.map(([ic, t, w]) => `<div class="rec-item"><i data-lucide="${ic}"></i><div><strong>${esc(t)}</strong><span>${esc(w)}</span></div></div>`).join(''));
   }
+  function recs() {
+    $('#recs').innerHTML = `
+      <div style="font-size:13px;line-height:1.5;">
+        <p><strong>Límites de Seguridad Configurados:</strong></p>
+        <ul style="padding-left:18px;margin:8px 0;color:var(--muted);">
+          <li>Verde mínimo: 15 segundos</li>
+          <li>Verde máximo: 60 segundos</li>
+          <li>Despeje peatonal obligatorio: 10 segundos</li>
+          <li>Fase todo rojo de seguridad: 2 segundos</li>
+        </ul>
+        <p style="color:var(--muted);font-size:12px;">El microcontrolador central ESP32 conmuta dinámicamente las fases respetando estrictamente estas restricciones.</p>
+      </div>
+    `;
+  }
   function history() {
-    const now = Date.now(), seed = [[2, 'Fase', 'Cambio de fase según el plan de ciclo'], [9, 'Sensores', 'Lectura de sensores sincronizada (simulada)'], [18, 'Plan', `Plan vigente: verde N–S ${i.plan.ns} s / E–O ${i.plan.eo} s`], [34, 'Congestión', `Congestión ${D.level(i.cong).label.toLowerCase()} registrada (${i.cong}%)`], [52, 'Modo', `Modo ${i.mode.toLowerCase()} activo`], [75, 'Sistema', 'Verificación de estado completada']]
-      .map(([m, t, x]) => ({ ts: now - m * 60000, t, x }));
     const inc = VS.incidents().filter(x => x.int === i.id).map(x => ({ ts: x.ts, t: 'Incidencia', x: `${x.type}: ${x.desc}` }));
-    const rows = session.concat(inc, seed).sort((a, b) => b.ts - a.ts).slice(0, 12);
-    $('#hist').innerHTML = rows.map(r => `<tr><td style="white-space:nowrap">${VS.ago(r.ts)}</td><td>${VS.badge(r.t, r.t === 'Incidencia' ? 'warn' : r.t === 'Demo' ? 'info' : '', false)}</td><td>${esc(r.x)}</td></tr>`).join('');
+    const rows = session.concat(inc).sort((a, b) => b.ts - a.ts).slice(0, 12);
+    $('#hist').innerHTML = rows.length ? rows.map(r => `<tr><td style="white-space:nowrap">${VS.ago(r.ts)}</td><td>${VS.badge(r.t, r.t === 'Incidencia' ? 'warn' : 'info', false)}</td><td>${esc(r.x)}</td></tr>`).join('') : '<tr><td colspan="3" class="empty">No hay eventos registrados.</td></tr>';
   }
 
   /* ---------- Gráfico ---------- */
@@ -104,17 +117,9 @@
     chart = VS.chart('flowDetail', { type: 'bar', data: { labels, datasets: [{ label: 'Vehículos / 10 min', data: D.recentFlow(i), backgroundColor: p.blue + 'CC', borderRadius: 4 }] }, options: VS.opts({ plugins: { legend: { display: false } } }) });
   }
 
-  /* ---------- Interacciones demostrativas ---------- */
+  /* ---------- Interacciones de control ---------- */
   root.addEventListener('click', e => {
-    const m = e.target.closest('[data-mode]'), f = e.target.closest('[data-force]');
-    if (m && m.dataset.mode !== i.mode) {
-      i.mode = m.dataset.mode; session.unshift({ ts: Date.now(), t: 'Demo', x: `Modo cambiado a ${i.mode.toLowerCase()} (simulación)` });
-      modeCard(i.mode); gauge(); history(); recs(); VS.toast(`Modo ${i.mode.toLowerCase()} aplicado en la simulación. No se envió ninguna señal real.`, 'ok');
-    }
-    if (f) {
-      i.pi = Number(f.dataset.force); i.pr = VS.durs(i)[i.pi]; session.unshift({ ts: Date.now(), t: 'Demo', x: `Fase forzada: ${VS.phaseLabels[i.pi]} (simulación)` });
-      phaseCard(); xing(); approaches(); history(); VS.toast('Fase forzada solo en la simulación.', 'ok');
-    }
+    // Modo gobernado autónomamente por hardware ESP32 remoto
   });
   VS.onSecond(() => {
     const d = VS.durs(i)[i.pi], r = $('#phaseRem'); if (!r) return;

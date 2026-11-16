@@ -52,7 +52,7 @@
         esp32Pill.style.background = 'rgba(34,197,94,0.15)';
         esp32Pill.style.borderColor = '#22c55e';
         esp32Pill.style.color = '#22c55e';
-        esp32Pill.innerHTML = '<i class="dot" style="background:#22c55e"></i>ESP32: 100% LOCAL (INMUNE A INTERNET)';
+        esp32Pill.innerHTML = '<i class="dot" style="background:#22c55e"></i>ESP32: EN LÍNEA (REMOTO)';
       } else {
         esp32Pill.style.background = 'rgba(239,68,68,0.15)';
         esp32Pill.style.borderColor = '#ef4444';
@@ -76,17 +76,17 @@
     const onlineCams = cams.filter(c => c.isOnline).length;
 
     const cards = isOnline ? [
-      ['Cerebro Central ESP32', 'cpu', '100% Local', 'good', 'Inmune a cortes de internet · Arequipa'],
+      ['Cerebro Central ESP32', 'cpu', 'En línea (Remoto)', 'good', 'Control adaptativo autónomo · Cruce físico'],
       ['Semáforos Físicos', 'traffic-cone', '2 Unidades', '', 'SEM-01 (Av. Ejército) · SEM-02 (Los Arces)'],
       ['Cámaras ESP32-CAM', 'video', `${onlineCams} Activas`, 'good', 'Inferencia On-Edge en lo alto del poste'],
       ['Vehículos en Cruce', 'car', `${totalVehicles} veh`, '', 'Detectados por Machine Learning'],
-      ['Respaldo Solar', 'sun', `${solar.batteryPercent}%`, 'good', `${solar.batteryVoltage}V · LiFePO4 (~18.5h autonomía)`]
+      ['Respaldo Solar', 'sun', `${solar.batteryPercent}%`, 'good', `${solar.batteryVoltage}V · LiFePO4`]
     ] : [
-      ['Cerebro Central ESP32', 'cpu', 'Desconectado', 'bad', 'Sin enlace de hardware local'],
+      ['Cerebro Central ESP32', 'cpu', 'Desconectado', 'bad', 'Sin enlace con microcontrolador remoto'],
       ['Semáforos Físicos', 'traffic-cone', '2 Unidades', '', 'SEM-01 (Av. Ejército) · SEM-02 (Los Arces)'],
       ['Cámaras ESP32-CAM', 'video', '0/2 Sin señal', 'bad', 'Esperando conexión IoT...'],
-      ['Vehículos en Cruce', 'car', '0 veh', 'muted', 'Sin datos simulados (en espera)'],
-      ['Respaldo Solar', 'sun', '0%', 'warn', '0.0V · Sin telemetría de hardware']
+      ['Vehículos en Cruce', 'car', '0 veh', 'muted', 'Sin telemetría activa (en espera)'],
+      ['Respaldo Solar', 'sun', '0%', 'warn', '0.0V · Sin enlace con sensor']
     ];
 
     VS.render($('#kpis'), cards.map(([t, ic, v, c, f]) => `
@@ -247,22 +247,14 @@
 
   function renderEmergencyBanner(isOnline) {
     const badge = $('#emergAlertBadge');
-    const btn = $('#emergBtn');
+    if (!badge) return;
 
     if (isOnline && isEmergencyActive) {
-      if (badge) badge.innerHTML = `<span class="badge bad" style="font-size:12px;padding:6px 12px;"><i class="dot" style="background:#ef4444;box-shadow:0 0 6px #ef4444;"></i>ONDA VERDE DE EMERGENCIA ACTIVA</span>`;
-      if (btn) {
-        btn.textContent = 'Desactivar Emergencia (Volver a ciclo adaptativo)';
-        btn.style.background = '#ef4444';
-        btn.style.color = '#fff';
-      }
+      badge.innerHTML = `<span class="badge bad" style="font-size:12px;padding:6px 12px;"><i class="dot" style="background:#ef4444;box-shadow:0 0 6px #ef4444;"></i>ONDA VERDE DE EMERGENCIA ACTIVA</span>`;
+    } else if (isOnline) {
+      badge.innerHTML = `<span class="badge good">Ciclo Adaptativo ML (Activo)</span>`;
     } else {
-      if (badge) badge.innerHTML = isOnline ? `<span class="badge good">Ciclo Adaptativo ML</span>` : `<span class="badge bad">En espera de conexión</span>`;
-      if (btn) {
-        btn.innerHTML = `<i data-lucide="siren"></i>Simular Ambulancia en Av. Ejército`;
-        btn.style.background = 'transparent';
-        btn.style.color = '#ef4444';
-      }
+      badge.innerHTML = `<span class="badge bad">En espera de conexión</span>`;
     }
   }
 
@@ -286,33 +278,9 @@
   }
 
   // Event Listeners
-  $('#emergBtn')?.addEventListener('click', async () => {
-    try {
-      if (isEmergencyActive) {
-        await fetch('/api/v1/realtime/emergency-reset', { method: 'POST' });
-      } else {
-        await fetch('/api/v1/realtime/emergency-trigger?camId=CAM-01', { method: 'POST' });
-      }
-      await fetchRealtimeData();
-      await loadIncidents();
-    } catch (e) {
-      console.error(e);
-    }
-  });
-
   $('#refreshBtn')?.addEventListener('click', async () => {
     await fetchRealtimeData();
     await loadIncidents();
-  });
-
-  $('#simTeleBtn')?.addEventListener('click', async () => {
-    try {
-      await fetch('/api/v1/iot/simulate-telemetry', { method: 'POST' });
-      await fetchRealtimeData();
-      await loadIncidents();
-    } catch (e) {
-      console.error(e);
-    }
   });
 
   // Arranque

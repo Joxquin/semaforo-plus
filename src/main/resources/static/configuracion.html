@@ -35,13 +35,13 @@
     <div class="switches">
       <label class="switch"><input type="checkbox" id="nCritical"><span class="track"></span><span class="sw-text"><strong>Alertas críticas</strong><small>Aviso cuando una intersección supera el 85 % de congestión.</small></span></label>
       <label class="switch"><input type="checkbox" id="nIncidents"><span class="track"></span><span class="sw-text"><strong>Incidencias nuevas</strong><small>Muestra todas las prioridades en el panel de notificaciones.</small></span></label>
-      <label class="switch"><input type="checkbox" id="nPred"><span class="track"></span><span class="sw-text"><strong>Avisos de predicción</strong><small>Resumen de riesgo previsto (simulado).</small></span></label>
+      <label class="switch"><input type="checkbox" id="nPred"><span class="track"></span><span class="sw-text"><strong>Avisos de predicción</strong><small>Resumen de riesgo proyectado.</small></span></label>
       <label class="switch"><input type="checkbox" id="nToasts"><span class="track"></span><span class="sw-text"><strong>Avisos emergentes</strong><small>Mensajes breves en la esquina inferior.</small></span></label>
     </div>
   </section>
   <section class="card span-6">
-    <div class="card-head"><div><h2>Actualización de datos simulados</h2><p>Frecuencia con la que varían los indicadores.</p></div></div>
-    <div class="field"><label for="interval">Intervalo</label><select id="interval"><option value="3">Cada 3 segundos</option><option value="5">Cada 5 segundos</option><option value="10">Cada 10 segundos</option><option value="30">Cada 30 segundos</option><option value="0">Pausada</option></select></div>
+    <div class="card-head"><div><h2>Sincronización de Telemetría Real</h2><p>Frecuencia de actualización desde la API.</p></div></div>
+    <div class="field"><label for="interval">Intervalo de sondeo</label><select id="interval"><option value="3">Cada 3 segundos</option><option value="5">Cada 5 segundos</option><option value="10">Cada 10 segundos</option><option value="30">Cada 30 segundos</option></select></div>
     <p class="muted small" id="intervalNote"></p>
   </section>
   <section class="card span-6">
@@ -57,25 +57,14 @@
     <label class="switch"><input type="checkbox" id="collapsed"><span class="track"></span><span class="sw-text"><strong>Menú lateral contraído</strong><small>Solo disponible en pantallas grandes.</small></span></label>
   </section>
   <section class="card span-6">
-    <div class="card-head"><div><h2>Panel del dashboard</h2><p>Elige qué bloques se muestran en el centro de control.</p></div></div>
-    <div class="switches">
-      <label class="switch"><input type="checkbox" data-w="map"><span class="track"></span><span class="sw-text"><strong>Mapa de la red vial</strong></span></label>
-      <label class="switch"><input type="checkbox" data-w="pred"><span class="track"></span><span class="sw-text"><strong>Predicción a 15 minutos</strong></span></label>
-      <label class="switch"><input type="checkbox" data-w="inc"><span class="track"></span><span class="sw-text"><strong>Incidencias recientes</strong></span></label>
-      <label class="switch"><input type="checkbox" data-w="flow"><span class="track"></span><span class="sw-text"><strong>Gráfico de flujo vehicular</strong></span></label>
-      <label class="switch"><input type="checkbox" data-w="dist"><span class="track"></span><span class="sw-text"><strong>Distribución de congestión</strong></span></label>
-      <label class="switch"><input type="checkbox" data-w="lights"><span class="track"></span><span class="sw-text"><strong>Tabla de semáforos</strong></span></label>
+    <div class="card-head"><div><h2>Parámetros de Hardware y Red (INT-01)</h2><p>Configuración IP y enlaces de los microcontroladores.</p></div></div>
+    <div style="font-size:13px;display:flex;flex-direction:column;gap:8px;">
+      <div><strong>ESP32 Central:</strong> <span class="badge">192.168.1.50</span></div>
+      <div><strong>ESP32-CAM Norte (Av. Ejército):</strong> <span class="badge">192.168.1.51</span></div>
+      <div><strong>ESP32-CAM Este (Los Arces):</strong> <span class="badge">192.168.1.52</span></div>
+      <div><strong>Límites:</strong> 15s mín · 60s máx · 10s despeje peatonal</div>
     </div>
-  </section>
-  <section class="card span-6">
-    <div class="card-head"><div><h2>Parámetros de demostración</h2><p>Cambia el escenario simulado de la red.</p></div></div>
-    <fieldset class="choices"><legend>Escenario</legend>
-      <label class="choice"><input type="radio" name="scenario" value="normal"><span>Normal</span></label>
-      <label class="choice"><input type="radio" name="scenario" value="punta"><span>Hora punta</span></label>
-      <label class="choice"><input type="radio" name="scenario" value="nocturno"><span>Nocturno</span></label>
-    </fieldset>
-    <div class="form-actions">
-      <button class="btn" id="resetSession" type="button">Restablecer incidencias de la sesión</button>
+    <div class="form-actions" style="margin-top:14px;">
       <button class="btn" id="resetPrefs" type="button">Restablecer preferencias</button>
     </div>
   </section>

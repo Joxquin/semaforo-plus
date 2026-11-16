@@ -66,10 +66,20 @@
   VS.intersections.forEach((i, k) => { i.base = i.cong; i.pi = k % 4; i.pr = Math.max(3, Math.round(durs(i)[i.pi] * (.3 + ((k * 37) % 60) / 100))); });
   VS.applyScenario();
 
-  VS.phaseInner = i => `<i class="dot" style="color:${i.pi % 2 ? 'var(--yellow)' : 'var(--green)'}"></i>${LABELS[i.pi]} · ${i.pr} s`;
+  VS.phaseInner = i => i.iotConnected ? `<i class="dot" style="color:${i.pi % 2 ? 'var(--yellow)' : 'var(--green)'}"></i>${LABELS[i.pi]} · ${i.pr} s` : `<i class="dot" style="color:var(--red)"></i>Sin señal`;
   VS.phaseHTML = i => `<span class="phase" data-phase-id="${i.id}">${VS.phaseInner(i)}</span>`;
-  VS.lightState = (i, d) => { const g = (d === 'N' || d === 'S') ? 0 : 2; return i.pi === g ? 'green' : i.pi === g + 1 ? 'yellow' : 'red'; };
-  function advancePhases() { VS.intersections.forEach(i => { i.pr--; if (i.pr <= 0) { i.pi = (i.pi + 1) % 4; i.pr = durs(i)[i.pi]; } }); }
+  VS.lightState = (i, d) => {
+    if (!i.iotConnected) return 'off';
+    const g = (d === 'N' || d === 'S') ? 0 : 2;
+    return i.pi === g ? 'green' : i.pi === g + 1 ? 'yellow' : 'red';
+  };
+  function advancePhases() {
+    VS.intersections.forEach(i => {
+      if (!i.iotConnected) return;
+      i.pr--;
+      if (i.pr <= 0) { i.pi = (i.pi + 1) % 4; i.pr = durs(i)[i.pi]; }
+    });
+  }
   function updatePhaseLabels() { $$('[data-phase-id]').forEach(el => { const i = VS.byId(el.dataset.phaseId); if (i) el.innerHTML = VS.phaseInner(i); }); }
 
   /* ---------- Incidencias (la sesión conserva los cambios) ---------- */
@@ -137,17 +147,16 @@
   VS.onSecond = f => secFns.push(f);
   VS.lastUpdate = Date.now();
   VS.tick = () => {
-    const off = OFFS[VS.prefs.scenario] || 0;
-    VS.intersections.forEach(i => {
-      if (i.status === 'Sin datos') return;       // sin lecturas: se mantiene el último valor
-      const target = clamp(i.base + off, 5, 98);
-      const d = Math.round((target - i.cong) * .2 + (Math.random() - .5) * 5);
-      i.cong = clamp(i.cong + clamp(d, -3, 3), 5, 98); D.derive(i);
-      if (i.cong >= 85 && !i.alerted && VS.prefs.notif.critical && VS.prefs.notif.toasts) { i.alerted = true; VS.toast(`${i.id}: la congestión supera el 85 %. Revisa la intersección.`, 'warn'); }
-      if (i.cong < 80) i.alerted = false;
-    });
     VS.lastUpdate = Date.now();
-    tickFns.forEach(f => f()); updateTopbar();
+    if (D.service && D.service.syncFromBackend) {
+      D.service.syncFromBackend().then(() => {
+        updateTopbar();
+        tickFns.forEach(f => f());
+      });
+    } else {
+      updateTopbar();
+      tickFns.forEach(f => f());
+    }
   };
   let tickTimer = null;
   VS.restartTimer = () => { clearInterval(tickTimer); const s = Number(VS.prefs.interval); if (s > 0) tickTimer = setInterval(VS.tick, s * 1000); };
@@ -171,13 +180,22 @@
   }
   function bellList() {
     const n = VS.prefs.notif, list = VS.incidents().filter(x => x.status === 'Nueva' && (n.incidents || (n.critical && x.prio === 'Alta'))).slice(0, 5);
-    const pred = n.predictions ? '<a class="pop-item" href="predicciones.html"><i data-lucide="sparkles"></i><div><strong>Riesgo previsto en la red</strong><span>Revisa la predicción simulada a 30 min</span></div></a>' : '';
+    const pred = n.predictions ? '<a class="pop-item" href="predicciones.html"><i data-lucide="sparkles"></i><div><strong>Riesgo previsto en el cruce</strong><span>Revisa la proyección a 30 min</span></div></a>' : '';
     const items = list.map(x => `<a class="pop-item" href="incidencias.html"><i data-lucide="${x.prio === 'Alta' ? 'triangle-alert' : 'info'}" style="color:${x.prio === 'Alta' ? 'var(--red)' : 'var(--yellow)'}"></i><div><strong>${esc(x.type)}</strong><span>${esc(x.int)} · ${VS.ago(x.ts)}</span></div></a>`).join('');
     return { html: (items + pred) || '<div class="pop-empty">No hay notificaciones nuevas.</div>', count: list.length + (n.predictions ? 1 : 0) };
   }
   function updateTopbar() {
-    const ok = VS.intersections.filter(i => i.status !== 'Sin datos' && i.status !== 'Sin señal' && i.iotConnected).length, pill = $('#sensorPill');
-    if (pill) { pill.innerHTML = `<i class="dot" style="color:${ok < VS.intersections.length ? 'var(--red)' : 'var(--green)'}"></i>IoT ${ok}/${VS.intersections.length}`; }
+    const ok = VS.intersections.filter(i => i.status !== 'Sin datos' && i.status !== 'Sin señal' && i.iotConnected).length;
+    const pill = $('#sensorPill');
+    if (pill) { pill.innerHTML = `<i class="dot" style="background:${ok > 0 ? 'var(--green)' : 'var(--red)'}"></i>Hardware ${ok}/${VS.intersections.length} ${ok > 0 ? 'En línea' : 'Sin señal'}`; }
+    const topPill = $('#esp32TopPill');
+    if (topPill) {
+      if (ok > 0) {
+        topPill.innerHTML = '<i class="dot" style="background:var(--green)"></i>ESP32: En línea (Remoto)';
+      } else {
+        topPill.innerHTML = '<i class="dot" style="background:var(--red)"></i>ESP32: Desconectado (Sin señal)';
+      }
+    }
     const u = $('#updTxt'); if (u) { const d = new Date(VS.lastUpdate); u.textContent = `Actualizado ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; }
     const b = bellList(), m = $('#bellMenuList'); if (m) { m.innerHTML = b.html; VS.icons(); }
     const c = $('#bellCount'); if (c) { c.textContent = b.count; c.hidden = !b.count; }
@@ -195,7 +213,7 @@
     $('#topbar').innerHTML = `<button type="button" class="icon-btn" id="menuBtn" aria-label="Alternar menú lateral" aria-expanded="false"><i data-lucide="menu"></i></button>
       <div class="page-title"><h1>${esc(b.dataset.title)}</h1><p>${esc(b.dataset.subtitle || '')}</p></div>
       <div class="top-right">
-        <span class="pill hide-m"><i class="dot" style="color:var(--green)"></i>ESP32 100% Local</span>
+        <span class="pill hide-m" id="esp32TopPill"><i class="dot" style="background:var(--red)"></i>ESP32: Sin señal</span>
         <span class="pill hide-m" id="sensorPill"></span>
         <div class="clock hide-m"><strong id="clockTime">--:--:--</strong><small id="clockDate"></small></div>
         <div class="menu-wrap"><button type="button" class="icon-btn" id="bellBtn" aria-label="Notificaciones" aria-haspopup="true" aria-expanded="false"><i data-lucide="bell"></i><span class="badge-dot" id="bellCount" hidden></span></button>

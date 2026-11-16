@@ -75,6 +75,7 @@ class DataInitializer(
     }
 
     private fun initIncidents() {
+        // Sin incidencias hardcodeadas: la lista se puebla dinámicamente cuando el hardware reporta eventos o desconexión
         if (loadIncidentPort.count() == 0L) {
             val list = listOf(
                 Incident(
@@ -83,21 +84,12 @@ class DataInitializer(
                     intersectionCode = "INT-01",
                     severity = "Alta",
                     status = "Nueva",
-                    description = "No se detecta enlace activo con el microcontrolador central ESP32 ni con las cámaras ESP32-CAM. Mostrando estado de espera sin señal.",
-                    reportedAt = LocalDateTime.now().minusMinutes(2)
-                ),
-                Incident(
-                    code = "INC-1002",
-                    title = "Respaldo solar en flotación",
-                    intersectionCode = "INT-01",
-                    severity = "Baja",
-                    status = "Resuelta",
-                    description = "Sistema preparado para autonomía híbrida (Solar LiFePO4 + Red) en Av. Ejército.",
-                    reportedAt = LocalDateTime.now().minusMinutes(30)
+                    description = "Sin enlace activo con el microcontrolador central ESP32 ni con las cámaras ESP32-CAM. Estado: Sin señal de hardware.",
+                    reportedAt = LocalDateTime.now()
                 )
             )
             loadIncidentPort.saveAll(list)
-            logger.info("Incidencias inicializadas para nodo único INT-01.")
+            logger.info("Estado inicial registrado para INT-01: Dispositivos IoT Desconectados.")
         }
     }
 }

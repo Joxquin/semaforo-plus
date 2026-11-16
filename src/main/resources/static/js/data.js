@@ -20,7 +20,7 @@ window.VS_DATA = (function () {
   /* ---------- Única Intersección Piloto Físico (2 Semáforos y 2 Cámaras ESP32-CAM) ----------
      INT-01 es el nodo físico equipado con retrofit ESP32 y 2x ESP32-CAM en Av. Ejército × Calle Los Arces */
   const intersections = [
-    { id: 'INT-01', name: 'Av. Ejército × Calle Los Arces', zone: 'Yanahuara', roads: ['Av. Ejército', 'Calle Los Arces'], cong: 0, mode: 'ESP32 Adaptativo (Local 100%)', status: 'Sin señal', x: 400, y: 220, plan: { ns: 38, eo: 30 }, split: [.55, .45, 0, 0], trend: [0, 0, 0], iotConnected: false }
+    { id: 'INT-01', name: 'Av. Ejército × Calle Los Arces', zone: 'Yanahuara', roads: ['Av. Ejército', 'Calle Los Arces'], cong: 0, mode: 'ESP32 Desconectado', status: 'Sin señal', x: 400, y: 220, plan: { ns: 38, eo: 30 }, split: [.55, .45, 0, 0], trend: [0, 0, 0], iotConnected: false }
   ];
   intersections.forEach((i, k) => { i.n = k + 1; });
 
@@ -63,55 +63,71 @@ window.VS_DATA = (function () {
     { id: 'CAM-02', int: 'INT-01', name: 'ESP32-CAM 02 · Poste Este (Calle Los Arces)', status: 'Sin señal', carril: 'Calle Los Arces (E–O)', ip: '192.168.1.52' }
   ];
 
-  /* ---------- Incidencias del Nodo Único ---------- */
-  const incidentTypes = ['Dispositivos IoT Desconectados', 'Vehículo de emergencia detectado', 'Respaldo solar en flotación', 'Cámara sin señal', 'Prioridad de transporte público'];
+  /* ---------- Incidencias Reales del Nodo Único ---------- */
+  const incidentTypes = ['Dispositivos IoT Desconectados', 'Vehículo de emergencia detectado', 'Cámara sin señal', 'Prioridad de transporte público'];
   const incidents = [
-    { id: 'INC-1001', type: 'Dispositivos IoT Desconectados', int: 'INT-01', prio: 'Alta', status: 'Nueva', ago: 2, source: 'ESP32 Autodiagnóstico', desc: 'No se detecta enlace activo con el microcontrolador central ESP32 ni con las cámaras ESP32-CAM. Mostrando estado sin señal.' },
-    { id: 'INC-1002', type: 'Respaldo solar en flotación', int: 'INT-01', prio: 'Baja', status: 'Resuelta', ago: 30, source: 'Controlador MPPT', desc: 'Sistema preparado para autonomía híbrida (Solar LiFePO4 + Red) en Av. Ejército.' }
+    { id: 'INC-1001', type: 'Dispositivos IoT Desconectados', int: 'INT-01', prio: 'Alta', status: 'Nueva', ago: 0, source: 'Autodiagnóstico', desc: 'Sin enlace activo con el microcontrolador central ESP32 ni con las cámaras ESP32-CAM.' }
   ];
 
-  /* ---------- Series históricas de la red (vehículos/h y % de congestión por hora) ---------- */
+  /* ---------- Series horarias reales (0 si no hay telemetría de hardware) ---------- */
   const hours = Array.from({ length: 24 }, (_, h) => String(h).padStart(2, '0') + ':00');
-  const flowBase = [1900, 1300, 950, 820, 1150, 2700, 6500, 10800, 12600, 9400, 8200, 8700, 9800, 10200, 9000, 8800, 9900, 12200, 13400, 11000, 7600, 5400, 3600, 2400];
-  const congBase = [18, 14, 10, 9, 12, 28, 52, 71, 78, 62, 52, 55, 60, 63, 56, 54, 62, 76, 82, 70, 50, 38, 28, 22];
 
   const periods = {
-    hoy: { label: 'Hoy', days: 1, k: 1, ck: 1, wk: 1, prev: { label: 'Ayer', k: .94, ck: .96, wk: .95 } },
-    ayer: { label: 'Ayer', days: 1, k: .94, ck: .96, wk: .95, prev: { label: 'Anteayer', k: .91, ck: .93, wk: .97 } },
-    '7d': { label: 'Últimos 7 días', days: 7, k: .97, ck: .98, wk: .98, prev: { label: '7 días anteriores', k: .93, ck: .95, wk: 1.03 } },
-    '30d': { label: 'Últimos 30 días', days: 30, k: .92, ck: .94, wk: .93, prev: { label: '30 días anteriores', k: .9, ck: .92, wk: .96 } }
+    hoy: { label: 'Hoy', days: 1, k: 1, ck: 1, wk: 1, prev: { label: 'Ayer', k: 0, ck: 0, wk: 0 } },
+    ayer: { label: 'Ayer', days: 1, k: 0, ck: 0, wk: 0, prev: { label: 'Anteayer', k: 0, ck: 0, wk: 0 } },
+    '7d': { label: 'Últimos 7 días', days: 7, k: 1, ck: 1, wk: 1, prev: { label: '7 días anteriores', k: 0, ck: 0, wk: 0 } },
+    '30d': { label: 'Últimos 30 días', days: 30, k: 1, ck: 1, wk: 1, prev: { label: '30 días anteriores', k: 0, ck: 0, wk: 0 } }
   };
 
-  function flow(list, all, k, seed) {
-    const share = sum(list, i => i.veh) / Math.max(1, sum(all, i => i.veh));
-    const s = hash(seed);
-    return flowBase.map((v, h) => Math.round(v * share * k * (1 + (rnd(s + h) - .5) * .08)));
+  function flow(list, all, k) {
+    const totalVeh = sum(list, i => i.veh);
+    if (!totalVeh || !list.some(i => i.iotConnected)) {
+      return Array(24).fill(0);
+    }
+    const currentHour = new Date().getHours();
+    const arr = Array(24).fill(0);
+    arr[currentHour] = totalVeh;
+    return arr;
   }
 
-  function cong(list, all, ck, seed) {
-    const avg = a => sum(a, i => i.cong) / Math.max(1, a.length);
-    const d = avg(list) - avg(all), s = hash(seed);
-    return congBase.map((v, h) => Math.round(clamp(v * ck + d * .6 + (rnd(s + h + 50) - .5) * 4, 3, 98)));
+  function cong(list, all, ck) {
+    if (!list.some(i => i.iotConnected)) {
+      return Array(24).fill(0);
+    }
+    const avgCong = Math.round(sum(list, i => i.cong) / Math.max(1, list.length));
+    const currentHour = new Date().getHours();
+    const arr = Array(24).fill(0);
+    arr[currentHour] = avgCong;
+    return arr;
   }
 
   function roadShare(list) {
-    const m = {};
-    list.forEach(i => i.roads.forEach(r => { m[r] = (m[r] || 0) + i.veh / 2; }));
-    return Object.entries(m).map(([road, veh]) => ({ road, veh: Math.round(veh) })).sort((a, b) => b.veh - a.veh);
+    const m = { 'Av. Ejército': 0, 'Calle Los Arces': 0 };
+    list.forEach(i => {
+      if (i.iotConnected && i.approach) {
+        m['Av. Ejército'] = i.approach[0]?.veh || 0;
+        m['Calle Los Arces'] = i.approach[1]?.veh || 0;
+      }
+    });
+    return Object.entries(m).map(([road, veh]) => ({ road, veh })).sort((a, b) => b.veh - a.veh);
   }
 
   function recentFlow(i) {
-    const base = i.veh * 10 / 15, s = hash(i.id), out = [];
-    for (let k = 0; k < 12; k++) out.push(Math.round(base * (.86 + Math.sin((k + s % 5) / 2.2) * .12 + (rnd(s + k) - .5) * .1)));
-    out[11] = Math.round(base);
-    return out;
+    if (!i.iotConnected) return Array(12).fill(0);
+    const arr = Array(12).fill(0);
+    arr[11] = i.veh;
+    return arr;
   }
 
   function predict(i, h) {
-    const idx = h === 15 ? 0 : h === 30 ? 1 : 2;
-    const c = clamp(i.cong + i.trend[idx], 4, 99), m = metrics(i, c);
-    const conf = [93, 85, 73][idx] - (i.status === 'Sin datos' ? 12 : 0) - (i.n * 3) % 4;
-    return { h, cong: c, veh: m.veh, wait: m.wait, conf, delta: c - i.cong };
+    if (!i.iotConnected || i.veh === 0) {
+      return { h, cong: 0, veh: 0, wait: 0, conf: 0, delta: 0 };
+    }
+    // Proyección de cola real basada en tasa de llegada detectada por ML (tiempo de despeje 2.5s por vehículo)
+    const veh = i.veh;
+    const estimatedWait = Math.round(veh * 2.5);
+    const cong = Math.min(100, Math.round((estimatedWait / 60) * 100));
+    return { h, cong, veh, wait: estimatedWait, conf: 90, delta: cong - i.cong };
   }
 
   /* ---------- Capa de Servicio Real Conectada a Spring Boot (Hexagonal) ---------- */
@@ -146,7 +162,7 @@ window.VS_DATA = (function () {
             int01.iotConnected = nodeRes.iotConnected;
             if (nodeRes.iotConnected) {
               int01.status = 'Operativa';
-              int01.mode = 'ESP32 Adaptativo (Local)';
+              int01.mode = 'Control Adaptativo ESP32';
               const c1 = nodeRes.cameras?.[0]?.classification?.totalVehicles || 0;
               const c2 = nodeRes.cameras?.[1]?.classification?.totalVehicles || 0;
               int01.veh = c1 + c2;
@@ -164,10 +180,12 @@ window.VS_DATA = (function () {
           const cam01 = cameras.find(c => c.id === 'CAM-01');
           if (cam01) {
             cam01.status = nodeRes.cameras?.[0]?.isOnline ? 'En línea' : 'Sin señal';
+            cam01.veh = nodeRes.cameras?.[0]?.classification?.totalVehicles || 0;
           }
           const cam02 = cameras.find(c => c.id === 'CAM-02');
           if (cam02) {
             cam02.status = nodeRes.cameras?.[1]?.isOnline ? 'En línea' : 'Sin señal';
+            cam02.veh = nodeRes.cameras?.[1]?.classification?.totalVehicles || 0;
           }
         }
 

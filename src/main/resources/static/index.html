@@ -27,7 +27,6 @@
     <span class="pill" id="powerPill"><i class="dot" style="background:#9ca3af"></i>Solar: Sin telemetría</span>
   </div>
   <div class="toolbar-spacer"></div>
-  <button class="btn btn-outline" id="emergBtn" type="button" style="border-color:#ef4444;color:#ef4444;"><i data-lucide="siren"></i>Simular Ambulancia en Av. Ejército</button>
   <button class="btn" id="refreshBtn" type="button"><i data-lucide="refresh-cw"></i>Sincronizar ESP32</button>
 </div>
 
@@ -37,11 +36,7 @@
     <i data-lucide="radio-off" style="color: var(--red); font-size: 1.4rem; flex-shrink: 0; margin-top: 2px;"></i>
     <div style="flex: 1;">
       <strong>Dispositivos IoT Desconectados en Nodo Piloto (INT-01 Av. Ejército × Calle Los Arces):</strong>
-      <p style="margin: 4px 0 8px 0; font-size: 13px;">No se detecta enlace activo con el microcontrolador central ESP32 ni con las cámaras ESP32-CAM (Poste Norte / Poste Este). Mostrando estado de espera sin inventar datos falsos. Para conectar hardware real, sube el sketch de la carpeta <code>firmware/</code> a tus microcontroladores, o presiona el botón para probar la recepción.</p>
-      <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-        <button class="btn btn-sm btn-outline" id="simTeleBtn" type="button"><i data-lucide="zap"></i>Simular Enlace con Telemetría Real</button>
-        <button class="btn btn-sm" id="disconnBtn" type="button" style="display:none;"><i data-lucide="power-off"></i>Desconectar IoT</button>
-      </div>
+      <p style="margin: 4px 0 0 0; font-size: 13px;">No se detecta enlace activo con el microcontrolador central ESP32 ni con las cámaras ESP32-CAM (Poste Norte / Poste Este). Mostrando estado sin señal en tiempo real (sin datos simulados). Carga el sketch de la carpeta <code>firmware/</code> en tus microcontroladores para iniciar la transmisión real a este servidor.</p>
     </div>
   </div>
 </div>

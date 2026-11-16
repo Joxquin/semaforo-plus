@@ -177,7 +177,7 @@
   }
   function updateTopbar() {
     const ok = VS.intersections.filter(i => i.status !== 'Sin datos').length, pill = $('#sensorPill');
-    if (pill) { pill.innerHTML = `<i class="dot" style="color:${ok < VS.intersections.length ? 'var(--yellow)' : 'var(--green)'}"></i>Sensores ${ok}/${VS.intersections.length}`; }
+    if (pill) { pill.innerHTML = `<i class="dot" style="color:${ok < VS.intersections.length ? 'var(--yellow)' : 'var(--green)'}"></i>2 Semáforos · 2 ESP32-CAM`; }
     const u = $('#updTxt'); if (u) { const d = new Date(VS.lastUpdate); u.textContent = `Actualizado ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; }
     const b = bellList(), m = $('#bellMenuList'); if (m) { m.innerHTML = b.html; VS.icons(); }
     const c = $('#bellCount'); if (c) { c.textContent = b.count; c.hidden = !b.count; }
@@ -191,11 +191,11 @@
     const b = document.body, cur = b.dataset.nav || b.dataset.page;
     $('#sidebar').innerHTML = `<a class="brand" href="index.html" aria-label="Semáforo+, ir al dashboard">${LOGO}<span class="brand-text"><strong>Semáforo+</strong><small>Movilidad Inteligente · TECSUP</small></span></a>
       <nav class="nav" aria-label="Módulos">${NAV.map(n => `<a href="${n.href}" title="${n.label}"${n.id === cur ? ' aria-current="page"' : ''}><i data-lucide="${n.icon}"></i><span class="nav-label">${n.label}</span></a>`).join('')}</nav>
-      <div class="side-foot"><div class="side-note"><i class="dot" style="color:var(--green)"></i>ODS 11 · TECSUP Arequipa<small>Retrofit ESP32 / ESP32-CAM · Av. Ejército</small></div></div>`;
+      <div class="side-foot"><div class="side-note"><i class="dot" style="color:var(--green)"></i>ODS 11 · TECSUP Arequipa<small>2 Semáforos + 2 ESP32-CAM · Av. Ejército</small></div></div>`;
     $('#topbar').innerHTML = `<button type="button" class="icon-btn" id="menuBtn" aria-label="Alternar menú lateral" aria-expanded="false"><i data-lucide="menu"></i></button>
       <div class="page-title"><h1>${esc(b.dataset.title)}</h1><p>${esc(b.dataset.subtitle || '')}</p></div>
       <div class="top-right">
-        <span class="pill hide-m"><i class="dot" style="color:var(--green)"></i>ESP32 Adaptativo</span>
+        <span class="pill hide-m"><i class="dot" style="color:var(--green)"></i>ESP32 100% Local</span>
         <span class="pill hide-m" id="sensorPill"></span>
         <div class="clock hide-m"><strong id="clockTime">--:--:--</strong><small id="clockDate"></small></div>
         <div class="menu-wrap"><button type="button" class="icon-btn" id="bellBtn" aria-label="Notificaciones" aria-haspopup="true" aria-expanded="false"><i data-lucide="bell"></i><span class="badge-dot" id="bellCount" hidden></span></button>

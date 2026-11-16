@@ -15,14 +15,32 @@ import org.springframework.stereotype.Service
 @Service
 class TrafficManagementService(
     private val loadIntersectionPort: LoadIntersectionPort,
-    private val loadIncidentPort: LoadIncidentPort
+    private val loadIncidentPort: LoadIncidentPort,
+    private val realtimeNodeService: RealtimeNodeService
 ) : GetIntersectionsUseCase,
     GetIncidentsUseCase,
     GetTelemetryUseCase,
     GetProjectInfoUseCase {
 
     override fun getIntersections(): List<Intersection> {
-        return loadIntersectionPort.findAll()
+        val node = realtimeNodeService.getNode()
+        return listOf(
+            Intersection(
+                id = 1L,
+                code = "INT-01",
+                name = node.name,
+                zone = node.zone,
+                status = "Operativa",
+                mode = if (node.activeEmergencyPriority) "ONDA VERDE EMERGENCIA" else "ESP32 Adaptativo (Local 100%)",
+                congestionPercent = 42,
+                greenNsSeconds = node.trafficLights.find { it.id == "SEM-01" }?.greenSecondsAllocated ?: 38,
+                greenEwSeconds = node.trafficLights.find { it.id == "SEM-02" }?.greenSecondsAllocated ?: 22,
+                solarBatteryLevel = node.solarBackup.batteryPercent,
+                esp32Status = "En línea (${node.esp32CentralStatus})",
+                esp32CamStatus = "2/2 ESP32-CAM Activas (ML On-Edge)",
+                emergencyPriorityActive = node.activeEmergencyPriority
+            )
+        )
     }
 
     override fun getIncidents(): List<Incident> {
@@ -30,18 +48,18 @@ class TrafficManagementService(
     }
 
     override fun getTelemetry(): Telemetry {
-        val totalNodes = loadIntersectionPort.count()
+        val node = realtimeNodeService.getNode()
         val incidents = loadIncidentPort.findAll()
         val openIncidents = incidents.count { it.status != "Resuelta" }.toLong()
-        val activeEmergency = incidents.count { it.status == "En curso" && it.title.contains("emergencia", ignoreCase = true) }
+        val activeEmergency = if (node.activeEmergencyPriority) 1 else 0
 
         return Telemetry(
-            activeNodes = totalNodes,
-            averageSolarBattery = "92.4%",
-            activeEmergencyPriorities = if (activeEmergency > 0) activeEmergency else 1,
+            activeNodes = 1L,
+            averageSolarBattery = "${node.solarBackup.batteryPercent}% (${node.solarBackup.batteryVoltage}V)",
+            activeEmergencyPriorities = activeEmergency,
             openIncidents = openIncidents,
-            esp32CamStatus = "$totalNodes/$totalNodes Activas",
-            avgGreenTimeGainSeconds = 14
+            esp32CamStatus = "2/2 ESP32-CAM (XGA 20fps)",
+            avgGreenTimeGainSeconds = 16
         )
     }
 

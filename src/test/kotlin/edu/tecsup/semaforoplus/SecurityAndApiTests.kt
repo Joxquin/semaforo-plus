@@ -62,14 +62,39 @@ class SecurityAndApiTests {
             .andExpect(jsonPath("$.project").value("Semáforo+"))
             .andExpect(jsonPath("$.institution").value("TECSUP (Arequipa)"))
             .andExpect(jsonPath("$.problemDiagnostic.citizensAffectedPercentage").value(69))
+            .andExpect(jsonPath("$.physicalNode.trafficLightsCount").value(2))
+            .andExpect(jsonPath("$.physicalNode.camerasCount").value(2))
     }
 
     @Test
     @WithMockUser(username = "operador", roles = ["OPERATOR"])
-    fun `authenticated operator can access intersections from H2`() {
+    fun `authenticated operator can access real intersection from H2`() {
         mockMvc.perform(get("/api/v1/intersections"))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$").isArray)
             .andExpect(jsonPath("$[0].code").value("INT-01"))
+            .andExpect(jsonPath("$[0].name").value("Av. Ejército × Calle Los Arces"))
+    }
+
+    @Test
+    @WithMockUser(username = "operador", roles = ["OPERATOR"])
+    fun `authenticated operator can access realtime dual cameras and lights`() {
+        mockMvc.perform(get("/api/v1/realtime/node"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.code").value("NODE-01"))
+            .andExpect(jsonPath("$.cameras.length()").value(2))
+            .andExpect(jsonPath("$.trafficLights.length()").value(2))
+
+        mockMvc.perform(get("/api/v1/realtime/cameras"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.length()").value(2))
+            .andExpect(jsonPath("$[0].id").value("CAM-01"))
+            .andExpect(jsonPath("$[1].id").value("CAM-02"))
+
+        mockMvc.perform(get("/api/v1/realtime/traffic-lights"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.length()").value(2))
+            .andExpect(jsonPath("$[0].id").value("SEM-01"))
+            .andExpect(jsonPath("$[1].id").value("SEM-02"))
     }
 }

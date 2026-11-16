@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Cámaras · Semáforo+ (TECSUP)</title>
-<meta name="description" content="Semáforo+: Sistema adaptativo de innovación y movilidad urbana (TECSUP Arequipa · ODS 11 · ESP32).">
+<title>Cámaras ESP32-CAM · Semáforo+ (TECSUP)</title>
+<meta name="description" content="Semáforo+: Visión artificial con 2 módulos ESP32-CAM en Av. Ejército (TECSUP Arequipa · ODS 11).">
 <link rel="icon" href="assets/icons/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12,7 +12,7 @@
 <link rel="stylesheet" href="css/styles.css">
 <script>try{var p=JSON.parse(localStorage.getItem('vs_prefs')||'{}');if(p.theme)document.documentElement.dataset.theme=p.theme;if(p.density)document.documentElement.dataset.density=p.density}catch(e){}</script>
 </head>
-<body data-page="camaras" data-title="Cámaras" data-subtitle="Centro de monitoreo visual simulado">
+<body data-page="camaras" data-title="Cámaras de Visión Artificial" data-subtitle="2× ESP32-CAM con Machine Learning On-Edge en postes (Av. Ejército × Calle Los Arces)">
 <a class="skip-link" href="#content">Saltar al contenido</a>
 <div class="app">
 <aside class="sidebar" id="sidebar" aria-label="Navegación lateral"></aside>
@@ -20,12 +20,6 @@
 <div class="main">
 <header class="topbar" id="topbar"></header>
 <main class="content" id="content" tabindex="-1">
-<div class="sim-banner"><i data-lucide="info"></i><span>Las vistas son ilustraciones generadas por la aplicación. No hay cámaras reales ni transmisiones conectadas.</span></div>
-<div class="toolbar no-print">
-  <div class="field grow"><label for="q">Buscar cámara</label><div class="search"><i data-lucide="search"></i><input id="q" type="search" placeholder="Código, nombre o vía" autocomplete="off"></div></div>
-  <div class="field"><label for="fStt">Estado</label><select id="fStt"></select></div>
-  <div class="field"><label for="fZone">Ubicación</label><select id="fZone"></select></div>
-</div>
 <div class="summary" id="camSummary"></div>
 <p class="muted" id="camCount" aria-live="polite"></p>
 <div class="cam-grid" id="camGrid"></div>

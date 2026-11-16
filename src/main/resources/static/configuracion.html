@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Configuración · Semáforo+ (TECSUP)</title>
-<meta name="description" content="Semáforo+: Sistema adaptativo de innovación y movilidad urbana (TECSUP Arequipa · ODS 11 · ESP32).">
+<meta name="description" content="Semáforo+: Configuración y parámetros operativos del nodo ESP32 y cámaras ESP32-CAM (TECSUP Arequipa · ODS 11).">
 <link rel="icon" href="assets/icons/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12,7 +12,7 @@
 <link rel="stylesheet" href="css/styles.css">
 <script>try{var p=JSON.parse(localStorage.getItem('vs_prefs')||'{}');if(p.theme)document.documentElement.dataset.theme=p.theme;if(p.density)document.documentElement.dataset.density=p.density}catch(e){}</script>
 </head>
-<body data-page="configuracion" data-title="Configuración" data-subtitle="Preferencias del operador y de la demostración">
+<body data-page="configuracion" data-title="Configuración del Nodo Físico" data-subtitle="Parámetros operativos del ESP32 central, cámaras ESP32-CAM y límites de seguridad">
 <a class="skip-link" href="#content">Saltar al contenido</a>
 <div class="app">
 <aside class="sidebar" id="sidebar" aria-label="Navegación lateral"></aside>
@@ -21,66 +21,66 @@
 <header class="topbar" id="topbar"></header>
 <main class="content" id="content" tabindex="-1">
 <div class="grid cfg">
+  <!-- Perfil del Operador -->
   <form class="card span-6" id="pfForm" novalidate>
-    <div class="card-head"><div><h2>Perfil del operador</h2><p>Se muestra en la barra superior.</p></div></div>
+    <div class="card-head"><div><h2>Perfil del Operador</h2><p>Identidad activa en el centro de control</p></div></div>
     <div class="form-grid">
       <div class="field"><label for="pfName">Nombre</label><input id="pfName" autocomplete="off"><span class="field-error" id="pfNameErr" role="alert"></span></div>
       <div class="field"><label for="pfRole">Cargo</label><input id="pfRole" autocomplete="off"><span class="field-error" id="pfRoleErr" role="alert"></span></div>
-      <div class="field wide"><label for="pfEmail">Correo electrónico</label><input id="pfEmail" type="email" autocomplete="off"><span class="field-error" id="pfEmailErr" role="alert"></span></div>
+      <div class="field wide"><label for="pfEmail">Correo institucional</label><input id="pfEmail" type="email" autocomplete="off"><span class="field-error" id="pfEmailErr" role="alert"></span></div>
     </div>
     <div class="form-actions"><button class="btn btn-primary" type="submit">Guardar perfil</button></div>
   </form>
+
+  <!-- Notificaciones -->
   <section class="card span-6">
-    <div class="card-head"><div><h2>Notificaciones</h2><p>Controla los avisos visuales del sistema.</p></div></div>
+    <div class="card-head"><div><h2>Alertas Operativas</h2><p>Supervisión en tiempo real de eventos</p></div></div>
     <div class="switches">
-      <label class="switch"><input type="checkbox" id="nCritical"><span class="track"></span><span class="sw-text"><strong>Alertas críticas</strong><small>Aviso cuando una intersección supera el 85 % de congestión.</small></span></label>
-      <label class="switch"><input type="checkbox" id="nIncidents"><span class="track"></span><span class="sw-text"><strong>Incidencias nuevas</strong><small>Muestra todas las prioridades en el panel de notificaciones.</small></span></label>
-      <label class="switch"><input type="checkbox" id="nPred"><span class="track"></span><span class="sw-text"><strong>Avisos de predicción</strong><small>Resumen de riesgo previsto (simulado).</small></span></label>
-      <label class="switch"><input type="checkbox" id="nToasts"><span class="track"></span><span class="sw-text"><strong>Avisos emergentes</strong><small>Mensajes breves en la esquina inferior.</small></span></label>
+      <label class="switch"><input type="checkbox" id="nCritical" checked><span class="track"></span><span class="sw-text"><strong>Onda Verde de Emergencia</strong><small>Alerta sonora/visual al detectar ambulancias o bomberos.</small></span></label>
+      <label class="switch"><input type="checkbox" id="nIncidents" checked><span class="track"></span><span class="sw-text"><strong>Diagnóstico ESP32</strong><small>Notificar caídas de enlace o pérdida de paquetes ML.</small></span></label>
+      <label class="switch"><input type="checkbox" id="nToasts" checked><span class="track"></span><span class="sw-text"><strong>Respaldo de Energía</strong><small>Aviso cuando la batería baje del 20% de capacidad.</small></span></label>
     </div>
   </section>
+
+  <!-- Parámetros del Cruce Físico (ESP32) -->
   <section class="card span-6">
-    <div class="card-head"><div><h2>Actualización de datos simulados</h2><p>Frecuencia con la que varían los indicadores.</p></div></div>
-    <div class="field"><label for="interval">Intervalo</label><select id="interval"><option value="3">Cada 3 segundos</option><option value="5">Cada 5 segundos</option><option value="10">Cada 10 segundos</option><option value="30">Cada 30 segundos</option><option value="0">Pausada</option></select></div>
-    <p class="muted small" id="intervalNote"></p>
+    <div class="card-head"><div><h2>Límites de Seguridad (ESP32)</h2><p>Parámetros inmutables programados en el microcontrolador</p></div></div>
+    <div style="display:flex;flex-direction:column;gap:12px;padding:8px 0;">
+      <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--border);padding-bottom:8px;">
+        <span><strong>Tiempo Verde Mínimo:</strong></span>
+        <span class="badge good">15 segundos (Garantía peatonal)</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--border);padding-bottom:8px;">
+        <span><strong>Tiempo Verde Máximo:</strong></span>
+        <span class="badge good">60 segundos (Evita bloqueo de carril)</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--border);padding-bottom:8px;">
+        <span><strong>Tiempo Ámbar / Amarillo:</strong></span>
+        <span>3 segundos</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;">
+        <span><strong>Despeje Todo Rojo:</strong></span>
+        <span>2 segundos</span>
+      </div>
+    </div>
   </section>
+
+  <!-- Apariencia -->
   <section class="card span-6">
-    <div class="card-head"><div><h2>Apariencia</h2><p>Los cambios se aplican al instante.</p></div></div>
-    <fieldset class="choices"><legend>Tema</legend>
+    <div class="card-head"><div><h2>Apariencia</h2><p>Personalización de la interfaz</p></div></div>
+    <fieldset class="choices"><legend>Tema de color</legend>
       <label class="choice"><input type="radio" name="theme" value="dark"><span>Oscuro</span></label>
       <label class="choice"><input type="radio" name="theme" value="light"><span>Claro</span></label>
     </fieldset>
-    <fieldset class="choices"><legend>Densidad</legend>
-      <label class="choice"><input type="radio" name="density" value="normal"><span>Cómoda</span></label>
+    <fieldset class="choices"><legend>Densidad visual</legend>
+      <label class="choice"><input type="radio" name="density" value="normal"><span>Estándar</span></label>
       <label class="choice"><input type="radio" name="density" value="compact"><span>Compacta</span></label>
     </fieldset>
-    <label class="switch"><input type="checkbox" id="collapsed"><span class="track"></span><span class="sw-text"><strong>Menú lateral contraído</strong><small>Solo disponible en pantallas grandes.</small></span></label>
   </section>
-  <section class="card span-6">
-    <div class="card-head"><div><h2>Panel del dashboard</h2><p>Elige qué bloques se muestran en el centro de control.</p></div></div>
-    <div class="switches">
-      <label class="switch"><input type="checkbox" data-w="map"><span class="track"></span><span class="sw-text"><strong>Mapa de la red vial</strong></span></label>
-      <label class="switch"><input type="checkbox" data-w="pred"><span class="track"></span><span class="sw-text"><strong>Predicción a 15 minutos</strong></span></label>
-      <label class="switch"><input type="checkbox" data-w="inc"><span class="track"></span><span class="sw-text"><strong>Incidencias recientes</strong></span></label>
-      <label class="switch"><input type="checkbox" data-w="flow"><span class="track"></span><span class="sw-text"><strong>Gráfico de flujo vehicular</strong></span></label>
-      <label class="switch"><input type="checkbox" data-w="dist"><span class="track"></span><span class="sw-text"><strong>Distribución de congestión</strong></span></label>
-      <label class="switch"><input type="checkbox" data-w="lights"><span class="track"></span><span class="sw-text"><strong>Tabla de semáforos</strong></span></label>
-    </div>
-  </section>
-  <section class="card span-6">
-    <div class="card-head"><div><h2>Parámetros de demostración</h2><p>Cambia el escenario simulado de la red.</p></div></div>
-    <fieldset class="choices"><legend>Escenario</legend>
-      <label class="choice"><input type="radio" name="scenario" value="normal"><span>Normal</span></label>
-      <label class="choice"><input type="radio" name="scenario" value="punta"><span>Hora punta</span></label>
-      <label class="choice"><input type="radio" name="scenario" value="nocturno"><span>Nocturno</span></label>
-    </fieldset>
-    <div class="form-actions">
-      <button class="btn" id="resetSession" type="button">Restablecer incidencias de la sesión</button>
-      <button class="btn" id="resetPrefs" type="button">Restablecer preferencias</button>
-    </div>
-  </section>
+
+  <!-- Información del Sistema Físico -->
   <section class="card span-12">
-    <div class="card-head"><div><h2>Información del sistema</h2></div></div>
+    <div class="card-head"><div><h2>Ficha Técnica del Nodo en Av. Ejército</h2></div></div>
     <dl class="dl" id="sysInfo"></dl>
   </section>
 </div>

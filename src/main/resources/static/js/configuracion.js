@@ -1,8 +1,9 @@
-/* Configuración · preferencias del operador y de la demostración */
+/* Semáforo+ · Configuración y Parámetros del Nodo Físico ESP32 */
 (function () {
   'use strict';
   const { $, $$ } = VS, P = VS.prefs;
-  const saved = (m = 'Preferencia guardada') => { VS.savePrefs(); VS.toast(m, 'ok'); };
+  const saved = (m = 'Configuración guardada') => { VS.savePrefs(); VS.toast(m, 'ok'); };
+
   $('#pfName').value = P.name; $('#pfRole').value = P.role; $('#pfEmail').value = P.email;
   $('#pfForm').addEventListener('submit', e => {
     e.preventDefault();
@@ -12,18 +13,37 @@
     if (!ok) return;
     P.name = n; P.role = r; P.email = m; saved('Perfil guardado'); VS.updateUser();
   });
-  [['#nCritical', 'critical'], ['#nIncidents', 'incidents'], ['#nPred', 'predictions'], ['#nToasts', 'toasts']].forEach(([s, k]) => { $(s).checked = P.notif[k]; $(s).addEventListener('change', e => { P.notif[k] = e.target.checked; saved(); }); });
-  const note = () => { $('#intervalNote').textContent = Number(P.interval) ? `Los indicadores varían de forma moderada cada ${P.interval} s.` : 'La actualización automática está en pausa.'; };
-  $('#interval').value = String(P.interval); note();
-  $('#interval').addEventListener('change', e => { P.interval = Number(e.target.value); saved('Intervalo actualizado'); VS.restartTimer(); note(); });
-  ['theme', 'density', 'scenario'].forEach(n => { $$(`input[name="${n}"]`).forEach(r => { r.checked = r.value === P[n]; r.addEventListener('change', () => { P[n] = r.value; saved(); if (n === 'scenario') { VS.applyScenario(); VS.tick(); } }); }); });
-  $('#collapsed').checked = !!P.collapsed; $('#collapsed').addEventListener('change', e => { P.collapsed = e.target.checked; saved(); });
-  $$('[data-w]').forEach(c => { c.checked = P.widgets[c.dataset.w]; c.addEventListener('change', () => { P.widgets[c.dataset.w] = c.checked; saved(); }); });
-  $('#resetSession').addEventListener('click', () => { VS.resetIncidents(); VS.toast('Incidencias de la sesión restablecidas', 'ok'); });
-  $('#resetPrefs').addEventListener('click', () => { VS.resetPrefs(); location.reload(); });
+
+  [['#nCritical', 'critical'], ['#nIncidents', 'incidents'], ['#nPred', 'predictions'], ['#nToasts', 'toasts']].forEach(([s, k]) => {
+    if ($(s)) {
+      $(s).checked = P.notif[k];
+      $(s).addEventListener('change', e => { P.notif[k] = e.target.checked; saved(); });
+    }
+  });
+
+  ['theme', 'density'].forEach(n => {
+    $$(`input[name="${n}"]`).forEach(r => {
+      r.checked = r.value === P[n];
+      r.addEventListener('change', () => { P[n] = r.value; saved(); });
+    });
+  });
+
   function info() {
-    const d = new Date(VS.lastUpdate), rows = [['Sistema', 'Semáforo+ (TECSUP Arequipa)'], ['Versión', '0.1.0 · prototipo visual'], ['Entorno', 'Navegador · HTML5, CSS3 y JavaScript'], ['Bibliotecas', 'Chart.js 4.4.1 · Lucide 0.469.0 (CDN)'], ['Origen de datos', 'Simulado · js/data.js'], ['Intersecciones simuladas', VS.intersections.length], ['Última actualización', d.toLocaleTimeString('es-PE')]];
+    const d = new Date();
+    const rows = [
+      ['Proyecto', 'Semáforo+ (TECSUP Arequipa · ODS 11)'],
+      ['Cruce Real', 'Av. Ejército × Calle Los Arces'],
+      ['Cerebro Central', 'ESP32 Dual-Core 240MHz (IP 192.168.1.50)'],
+      ['Semáforos Físicos', '2 Unidades: SEM-01 (Av. Ejército) y SEM-02 (Los Arces)'],
+      ['Cámaras On-Edge', '2 Unidades: ESP32-CAM 01 (Poste Norte) y ESP32-CAM 02 (Poste Este)'],
+      ['Modo de Operación', '100% Local Autónomo (Toma de decisiones en el poste sin internet)'],
+      ['Límites de Seguridad', 'Tiempo Verde: Mínimo 15s · Máximo 60s · Amarillo 3s'],
+      ['Respaldo Energético', 'Batería LiFePO4 13.6V (96%) + Panel Solar 50W'],
+      ['Servidor Backend', 'Spring Boot (Kotlin) · Arquitectura Hexagonal · H2 Database'],
+      ['Última Sincronización', d.toLocaleTimeString('es-PE')]
+    ];
     $('#sysInfo').innerHTML = rows.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('');
   }
-  VS.onTick(info); info();
+  info();
+  setInterval(info, 10000);
 })();

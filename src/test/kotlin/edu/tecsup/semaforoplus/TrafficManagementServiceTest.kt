@@ -25,7 +25,7 @@ class TrafficManagementServiceTest {
 
         assertEquals(1, result.size)
         assertEquals("INT-01", result[0].code)
-        assertEquals("Av. Ejército × Av. Salaverry", result[0].name)
+        assertEquals("Av. Ejército × Calle Los Arces", result[0].name)
     }
 
     @Test

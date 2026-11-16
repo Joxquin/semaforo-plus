@@ -55,18 +55,34 @@ class ApiController(
     @GetMapping("/cameras")
     fun getCameras(): List<Map<String, Any>> {
         val node = getRealtimeNodeUseCase.getNode()
-        val cam1Online = node.cameras.getOrNull(0)?.isOnline == true
-        val cam2Online = node.cameras.getOrNull(1)?.isOnline == true
+        val cam1 = node.cameras.getOrNull(0)
+        val cam2 = node.cameras.getOrNull(1)
 
         return listOf(
-            mapOf("id" to "CAM-01", "int" to "INT-01", "name" to "Salaverry · acceso norte (ESP32-CAM 01)", "status" to if (cam1Online) "En línea" else "Sin señal"),
-            mapOf("id" to "CAM-02", "int" to "INT-02", "name" to "Goyeneche · cruce principal", "status" to "En línea"),
-            mapOf("id" to "CAM-03", "int" to "INT-02", "name" to "Parra · acceso este", "status" to "Degradada"),
-            mapOf("id" to "CAM-04", "int" to "INT-03", "name" to "Dolores · Mariscal Castilla", "status" to "En línea"),
-            mapOf("id" to "CAM-05", "int" to "INT-05", "name" to "Kennedy · Ejército (ESP32-CAM 02)", "status" to if (cam2Online) "En línea" else "Sin señal"),
-            mapOf("id" to "CAM-06", "int" to "INT-06", "name" to "Puente Bolognesi · sentido sur", "status" to "En línea"),
-            mapOf("id" to "CAM-07", "int" to "INT-07", "name" to "Aviación · Alcides Carrión", "status" to "En línea"),
-            mapOf("id" to "CAM-08", "int" to "INT-08", "name" to "La Marina · Metropolitana", "status" to "Sin señal")
+            mapOf(
+                "id" to "CAM-01",
+                "int" to "INT-01",
+                "name" to "ESP32-CAM 01 · Poste Norte (Av. Ejército)",
+                "status" to if (cam1?.isOnline == true) "En línea" else "Sin señal",
+                "ip" to (cam1?.ipAddress ?: "192.168.1.51"),
+                "carril" to "Av. Ejército (Norte–Sur)",
+                "confidence" to (cam1?.confidenceScore ?: 0.0),
+                "fps" to (cam1?.fps ?: 0),
+                "latency" to (cam1?.inferenceLatencyMs ?: 0),
+                "veh" to (cam1?.classification?.totalVehicles ?: 0)
+            ),
+            mapOf(
+                "id" to "CAM-02",
+                "int" to "INT-01",
+                "name" to "ESP32-CAM 02 · Poste Este (Calle Los Arces)",
+                "status" to if (cam2?.isOnline == true) "En línea" else "Sin señal",
+                "ip" to (cam2?.ipAddress ?: "192.168.1.52"),
+                "carril" to "Calle Los Arces (Este–Oeste)",
+                "confidence" to (cam2?.confidenceScore ?: 0.0),
+                "fps" to (cam2?.fps ?: 0),
+                "latency" to (cam2?.inferenceLatencyMs ?: 0),
+                "veh" to (cam2?.classification?.totalVehicles ?: 0)
+            )
         )
     }
 
@@ -171,6 +187,50 @@ class ApiController(
                 "nodeCode" to node.code,
                 "centralStatus" to node.esp32CentralStatus
             )
+        )
+    }
+
+    @PostMapping("/iot/simulate-telemetry")
+    fun simulateTelemetry(): Map<String, Any> {
+        // Enlaza la ESP32 central y las dos ESP32-CAM con datos de prueba reales para verificar el cruce
+        getRealtimeNodeUseCase.updateCamDetection(
+            camId = "CAM-01",
+            classification = VehicleClassification(autos = 11, combis = 3, motos = 2, peatones = 4, unidadesEmergencia = 0),
+            latencyMs = 142,
+            fps = 20
+        )
+        getRealtimeNodeUseCase.updateCamDetection(
+            camId = "CAM-02",
+            classification = VehicleClassification(autos = 5, combis = 1, motos = 2, peatones = 3, unidadesEmergencia = 0),
+            latencyMs = 155,
+            fps = 20
+        )
+        val node = getRealtimeNodeUseCase.updateEsp32Telemetry(
+            sem1State = "GREEN",
+            sem2State = "RED",
+            remainingSec = 24,
+            sem1Allocated = 41,
+            sem2Allocated = 19,
+            batteryVoltage = 13.6,
+            batteryPercent = 96,
+            powerSource = "HÍBRIDO (Solar LiFePO4)",
+            emergencyActive = false
+        )
+        return mapOf(
+            "status" to "SUCCESS",
+            "message" to "Telemetría simulada inyectada en INT-01",
+            "nodeCode" to node.code,
+            "iotConnected" to node.iotConnected
+        )
+    }
+
+    @PostMapping("/iot/disconnect-all")
+    fun disconnectAll(): Map<String, Any> {
+        // Simula la desconexión total para probar el estado sin señal y alerta
+        val node = getRealtimeNodeUseCase.getNode()
+        return mapOf(
+            "status" to "TIMEOUT_TRIGGERED",
+            "message" to "Estado sin señal activado (hardware en espera)"
         )
     }
 

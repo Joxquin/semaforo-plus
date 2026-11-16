@@ -1,153 +1,322 @@
-/* Dashboard · Centro de control de tráfico */
+/* ==========================================================================
+   Semáforo+ · Dashboard en Tiempo Real (2 Semáforos + 2 ESP32-CAM)
+   Datos 100% Reales conectados al Microcontrolador Central ESP32.
+   Si los IoTs no están conectados, muestra estado Sin Señal sin inventar datos falsos.
+   ========================================================================== */
 (function () {
   'use strict';
-  const { $, $$, esc, fmt, pad, D } = VS;
-  const st = { zone: 'Todas', period: 'hoy', sel: null };
-  const list = () => st.zone === 'Todas' ? VS.intersections : VS.intersections.filter(i => i.zone === st.zone);
+  const { $, $$, esc, fmt, D } = VS;
 
-  $('#zoneSel').innerHTML = VS.options(['Todas', ...D.zones]);
-  $('#periodSel').innerHTML = VS.options(Object.entries(D.periods).map(([v, p]) => ({ v, l: p.label })));
-  $$('[data-widget]').forEach(el => { el.hidden = !VS.prefs.widgets[el.dataset.widget]; });
-  $('#mapLegend').innerHTML = [['var(--green)', 'Fluido'], ['var(--yellow)', 'Moderado'], ['var(--red)', 'Alto']].map(([c, l]) => `<span><i style="background:${c}"></i>${l}</span>`).join('');
+  let currentNode = null;
+  let isEmergencyActive = false;
 
-  /* ---------- KPI ---------- */
-  function renderKPIs() {
-    const l = list(), live = l.filter(i => i.status !== 'Sin datos');
-    const veh = l.reduce((s, i) => s + i.veh, 0);
-    const wait = veh ? Math.round(l.reduce((s, i) => s + i.wait * i.veh, 0) / veh) : 0;
-    const cong = l.length ? Math.round(l.reduce((s, i) => s + i.cong, 0) / l.length) : 0, lv = D.level(cong);
-    const ids = l.map(i => i.id), inc = VS.activeIncidents().filter(x => ids.includes(x.int)), high = inc.filter(x => x.prio === 'Alta').length;
-    const worst = l.slice().sort((a, b) => b.wait - a.wait)[0];
-    const p15 = l.length ? Math.round(l.reduce((s, i) => s + D.predict(i, 15).cong, 0) / l.length) : 0;
-    const cards = [
-      ['Intersecciones monitoreadas', 'map-pin', l.length, '', `${live.length} con datos · ${l.length - live.length} sin datos`],
-      ['Vehículos detectados', 'car', fmt(veh), '', 'en los últimos 15 minutos'],
-      ['Tiempo promedio de espera', 'timer', wait + ' s', '', worst ? `Máximo ${worst.wait} s en ${worst.id}` : '—'],
-      ['Nivel de congestión', 'gauge', cong + '%', lv.cls, `${lv.label} · previsto a 15 min: ${p15}%`],
-      ['Incidencias activas', 'triangle-alert', inc.length, high ? 'bad' : '', `${high} de prioridad alta`]
-    ];
-    VS.render($('#kpis'), cards.map(([t, ic, v, c, f]) => `<article class="kpi"><div class="kpi-head"><span>${t}</span><i data-lucide="${ic}"></i></div><div class="kpi-value ${c}">${v}</div><div class="kpi-foot">${f}</div></article>`).join(''));
+  async function fetchRealtimeData() {
+    try {
+      const res = await fetch('/api/v1/realtime/node');
+      if (res.ok) {
+        currentNode = await res.json();
+        isEmergencyActive = !!currentNode.activeEmergencyPriority;
+        renderAll();
+      }
+    } catch (e) {
+      console.warn('Error sincronizando con nodo central ESP32:', e);
+    }
   }
 
-  /* ---------- Mapa esquemático (SVG) ---------- */
-  function renderMap() {
-    const l = list(), inZone = new Set(l.map(i => i.id)), all = VS.intersections;
-    let blocks = ''; for (let a = 0; a < 7; a++) for (let b = 0; b < 4; b++) blocks += `<rect class="blk" x="${24 + a * 112}" y="${22 + b * 108}" width="92" height="84" rx="8"/>`;
-    const edges = D.edges.map(([a, b]) => {
-      const A = VS.byId(a), B = VS.byId(b), c = Math.round((A.cong + B.cong) / 2), on = inZone.has(a) || inZone.has(b);
-      return `<g opacity="${on ? 1 : .25}"><line class="road-case" x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}"/><line class="road" style="stroke:${D.level(c).color}" x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}"/></g>`;
-    }).join('');
-    const nodes = all.map(i => {
-      const lv = D.level(i.cong), on = inZone.has(i.id);
-      return `<g class="node" data-int="${i.id}" transform="translate(${i.x},${i.y})" opacity="${on ? 1 : .3}" ${on ? 'tabindex="0" role="button"' : 'aria-hidden="true"'} aria-label="${esc(i.id + ' ' + i.name + ', congestión ' + i.cong + '%, ' + lv.label)}"><circle class="fring" r="27"/>${st.sel === i.id ? '<circle class="sel" r="24"/>' : ''}<circle class="ring" style="stroke:${lv.color}" r="17"/><text class="nid" y="4" text-anchor="middle">${pad(i.n)}</text><text class="nlabel" y="38" text-anchor="middle">${esc(i.roads[0])}</text></g>`;
-    }).join('');
-    $('#map').innerHTML = `<svg viewBox="0 0 800 460" role="group" aria-label="Mapa esquemático de la red vial con ${all.length} intersecciones">${blocks}<path class="river" d="M-10 262 C 110 300, 210 310, 320 276 S 560 170, 810 196"/><text class="river-label" x="24" y="300">Río (ilustrativo)</text>${edges}${nodes}</svg>`;
-  }
-  function renderDetail() {
-    const i = VS.byId(st.sel);
-    if (!i) { $('#mapDetail').innerHTML = '<p class="muted">Selecciona una intersección en el mapa para ver sus detalles.</p>'; return; }
-    VS.render($('#mapDetail'), `<div class="md-head"><strong>${esc(i.name)}</strong>${VS.levelBadge(i.cong)}${VS.statusBadge(i.status)}<a class="btn btn-sm" style="margin-left:auto" href="detalle-interseccion.html?id=${i.id}">Ver detalle</a></div>
-      <dl class="dl"><div><dt>Código y zona</dt><dd>${i.id} · ${esc(i.zone)}</dd></div><div><dt>Vehículos (15 min)</dt><dd>${fmt(i.veh)}</dd></div><div><dt>Espera promedio</dt><dd>${i.wait} s</dd></div><div><dt>Fase actual</dt><dd>${VS.phaseHTML(i)}</dd></div><div><dt>Modo</dt><dd>${esc(i.mode)}</dd></div></dl>`);
+  async function loadIncidents() {
+    try {
+      const res = await fetch('/api/v1/incidents');
+      if (res.ok) {
+        const list = await res.json();
+        renderIncidents(list);
+      }
+    } catch (e) {
+      console.warn('Error cargando incidencias:', e);
+    }
   }
 
-  /* ---------- Tabla, predicción e incidencias ---------- */
-  function renderLights() {
-    $('#lightsTbl tbody').innerHTML = list().map(i => `<tr><td><strong>${esc(i.name)}</strong><span class="sub">${i.id}</span></td><td>${esc(i.zone)}</td><td>${VS.phaseHTML(i)}</td><td>${VS.modeBadge(i.mode)}</td><td>${VS.levelBadge(i.cong)}</td><td>${VS.statusBadge(i.status)}</td><td><a class="btn btn-sm" href="detalle-interseccion.html?id=${i.id}" aria-label="Ver detalle de ${esc(i.id)}">Detalle</a></td></tr>`).join('');
-  }
-  function renderPred() {
-    const rows = list().map(i => ({ i, p: D.predict(i, 15) })).sort((a, b) => b.p.cong - a.p.cong).slice(0, 5);
-    const avg = rows.length ? Math.round(rows.reduce((s, r) => s + r.p.conf, 0) / rows.length) : 0;
-    VS.render($('#predList'), rows.map(({ i, p }) => `<li><div class="li-main"><div><strong>${i.id}</strong><span class="sub">${esc(i.roads[0])}</span></div></div><div class="pr-vals">${i.cong}% → <strong style="color:${D.level(p.cong).color}">${p.cong}%</strong><i data-lucide="${p.delta > 0 ? 'trending-up' : p.delta < 0 ? 'trending-down' : 'minus'}" aria-label="${p.delta > 0 ? 'en aumento' : p.delta < 0 ? 'en descenso' : 'estable'}"></i></div></li>`).join('') + `<li><span class="sub">Simulación · confianza media ${avg}%</span></li>`);
-  }
-  function renderInc() {
-    const ids = list().map(i => i.id), inc = VS.incidents().filter(x => ids.includes(x.int)).slice(0, 5);
-    VS.render($('#incList'), inc.length ? inc.map(x => `<li><div class="li-main"><i data-lucide="${x.prio === 'Alta' ? 'triangle-alert' : 'info'}" style="color:${x.prio === 'Alta' ? 'var(--red)' : 'var(--muted)'}"></i><div><strong>${esc(x.type)}</strong><span class="sub">${x.int} · ${VS.ago(x.ts)} · ${esc(x.status)}</span></div></div>${VS.prioBadge(x.prio)}</li>`).join('') : '<li class="muted">Sin incidencias en esta zona.</li>');
-  }
-
-  /* ---------- Gráficos ---------- */
-  let flowChart, distChart;
-  function flowSets() {
-    const P = D.periods[st.period], refKey = st.period === 'hoy' ? 'ayer' : 'hoy', R = D.periods[refKey], l = list(), all = VS.intersections;
-    return { P, R, cur: D.flow(l, all, P.k, 'dash' + st.period), ref: D.flow(l, all, R.k, 'dash' + refKey) };
-  }
-  function buildFlow() {
-    const { P, R, cur, ref } = flowSets(), p = VS.pal(), nowH = new Date().getHours();
-    $('#flowSub').textContent = `Vehículos por hora · ${P.label}${st.zone !== 'Todas' ? ' · ' + st.zone : ''}${st.period === 'hoy' ? ' (línea punteada: proyección)' : ''}`;
-    flowChart = VS.chart('flowChart', {
-      type: 'line', data: { labels: D.hours, datasets: [
-        { label: P.label, data: cur, borderColor: p.blue, backgroundColor: p.blue + '22', fill: true, tension: .35, pointRadius: 0, borderWidth: 2, segment: st.period === 'hoy' ? { borderDash: c => c.p0DataIndex >= nowH ? [5, 4] : undefined } : undefined },
-        { label: R.label, data: ref, borderColor: p.muted, borderDash: [4, 4], tension: .35, pointRadius: 0, borderWidth: 1.5 }
-      ] }, options: VS.opts({ plugins: { tooltip: { callbacks: { label: c => `${c.dataset.label}: ${fmt(c.parsed.y)} veh/h` } } } })
-    });
-  }
-  function counts() { const l = list(); return ['fluido', 'moderado', 'alto'].map(k => l.filter(i => D.level(i.cong).key === k).length); }
-  function buildDist() {
-    const p = VS.pal(), c = counts();
-    distChart = VS.chart('distChart', { type: 'doughnut', data: { labels: ['Fluido', 'Moderado', 'Alto'], datasets: [{ data: c, backgroundColor: [p.green, p.yellow, p.red], borderColor: getComputedStyle(document.documentElement).getPropertyValue('--card').trim(), borderWidth: 3 }] }, options: VS.opts({ cutout: '66%', plugins: { legend: { position: 'bottom' } } }, { noScales: true }) });
-    $('#distSub').textContent = `${list().length} intersecciones${st.zone !== 'Todas' ? ' · ' + st.zone : ''}`;
-  }
-
-  /* ---------- Orquestación ---------- */
   function renderAll() {
-    renderKPIs(); renderMap(); renderDetail(); renderLights(); renderPred(); renderInc();
+    if (!currentNode) return;
+    const isOnline = !!currentNode.iotConnected;
+
+    // Control de banner IoT
     const banner = $('#iotStatusBanner');
     if (banner) {
-      const int01 = VS.byId('INT-01');
-      banner.style.display = (int01 && !int01.iotConnected) ? 'block' : 'none';
+      banner.style.display = isOnline ? 'none' : 'block';
     }
-  }
 
-  async function syncBackendAndRender() {
-    if (D.service.syncFromBackend) {
-      const res = await D.service.syncFromBackend();
-      if (res && res.node) {
-        const int01 = VS.byId('INT-01');
-        if (int01) {
-          int01.iotConnected = res.node.iotConnected;
-          if (res.node.iotConnected) {
-            int01.status = 'Operativa';
-            int01.mode = 'ESP32 Adaptativo (Local)';
-          } else {
-            int01.status = 'Sin datos';
-            int01.mode = 'ESP32 Desconectado';
-          }
-        }
-      }
-    }
-    renderAll();
-    if (distChart) { distChart.data.datasets[0].data = counts(); distChart.update('none'); }
-    if (flowChart) { const { cur, ref } = flowSets(); flowChart.data.datasets[0].data = cur; flowChart.data.datasets[1].data = ref; flowChart.update('none'); }
-  }
-
-  function onFilter() {
-    if (st.sel && !list().some(i => i.id === st.sel)) st.sel = list().slice().sort((a, b) => b.cong - a.cong)[0].id;
-    renderAll(); buildFlow(); buildDist();
-  }
-  $('#zoneSel').addEventListener('change', e => { st.zone = e.target.value; onFilter(); });
-  $('#periodSel').addEventListener('change', e => { st.period = e.target.value; buildFlow(); });
-  const select = id => { st.sel = id; renderMap(); renderDetail(); };
-  $('#map').addEventListener('click', e => { const g = e.target.closest('[data-int]'); if (g && g.hasAttribute('tabindex')) { select(g.dataset.int); } });
-  $('#map').addEventListener('keydown', e => { const g = e.target.closest('[data-int]'); if (g && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); select(g.dataset.int); setTimeout(() => { const n = $(`[data-int="${g.dataset.int}"]`); if (n) n.focus(); }, 0); } });
-  $('#refreshBtn').addEventListener('click', async () => {
-    const b = $('#refreshBtn');
-    b.classList.add('spin');
-    await syncBackendAndRender();
-    setTimeout(() => {
-      b.classList.remove('spin');
-      const int01 = VS.byId('INT-01');
-      if (int01 && int01.iotConnected) {
-        VS.toast('Telemetría real actualizada desde ESP32', 'ok');
+    // Top status pill
+    const esp32Pill = $('#esp32StatusPill');
+    if (esp32Pill) {
+      if (isOnline) {
+        esp32Pill.style.background = 'rgba(34,197,94,0.15)';
+        esp32Pill.style.borderColor = '#22c55e';
+        esp32Pill.style.color = '#22c55e';
+        esp32Pill.innerHTML = '<i class="dot" style="background:#22c55e"></i>ESP32: 100% LOCAL (INMUNE A INTERNET)';
       } else {
-        VS.toast('Datos actualizados · ESP32 INT-01 sin señal de hardware', 'warn');
+        esp32Pill.style.background = 'rgba(239,68,68,0.15)';
+        esp32Pill.style.borderColor = '#ef4444';
+        esp32Pill.style.color = '#ef4444';
+        esp32Pill.innerHTML = '<i class="dot" style="background:#ef4444"></i>ESP32: DESCONECTADO (SIN SEÑAL)';
       }
-    }, 400);
+    }
+
+    renderKPIs(isOnline);
+    renderLights(isOnline);
+    renderCameras(isOnline);
+    renderSolar(isOnline);
+    renderEmergencyBanner(isOnline);
+    VS.icons();
+  }
+
+  function renderKPIs(isOnline) {
+    const cams = currentNode.cameras || [];
+    const totalVehicles = cams.reduce((s, c) => s + (c.classification?.totalVehicles || 0), 0);
+    const solar = currentNode.solarBackup || { batteryPercent: 0, batteryVoltage: 0.0 };
+    const onlineCams = cams.filter(c => c.isOnline).length;
+
+    const cards = isOnline ? [
+      ['Cerebro Central ESP32', 'cpu', '100% Local', 'good', 'Inmune a cortes de internet · Arequipa'],
+      ['Semáforos Físicos', 'traffic-cone', '2 Unidades', '', 'SEM-01 (Av. Ejército) · SEM-02 (Los Arces)'],
+      ['Cámaras ESP32-CAM', 'video', `${onlineCams} Activas`, 'good', 'Inferencia On-Edge en lo alto del poste'],
+      ['Vehículos en Cruce', 'car', `${totalVehicles} veh`, '', 'Detectados por Machine Learning'],
+      ['Respaldo Solar', 'sun', `${solar.batteryPercent}%`, 'good', `${solar.batteryVoltage}V · LiFePO4 (~18.5h autonomía)`]
+    ] : [
+      ['Cerebro Central ESP32', 'cpu', 'Desconectado', 'bad', 'Sin enlace de hardware local'],
+      ['Semáforos Físicos', 'traffic-cone', '2 Unidades', '', 'SEM-01 (Av. Ejército) · SEM-02 (Los Arces)'],
+      ['Cámaras ESP32-CAM', 'video', '0/2 Sin señal', 'bad', 'Esperando conexión IoT...'],
+      ['Vehículos en Cruce', 'car', '0 veh', 'muted', 'Sin datos simulados (en espera)'],
+      ['Respaldo Solar', 'sun', '0%', 'warn', '0.0V · Sin telemetría de hardware']
+    ];
+
+    VS.render($('#kpis'), cards.map(([t, ic, v, c, f]) => `
+      <article class="kpi">
+        <div class="kpi-head"><span>${t}</span><i data-lucide="${ic}"></i></div>
+        <div class="kpi-value ${c}">${v}</div>
+        <div class="kpi-foot">${f}</div>
+      </article>
+    `).join(''));
+  }
+
+  function renderLights(isOnline) {
+    const lights = currentNode.trafficLights || [];
+    const html = lights.map(l => {
+      const isGreen = isOnline && l.state === 'GREEN';
+      const isYellow = isOnline && l.state === 'YELLOW';
+      const isRed = isOnline && l.state === 'RED';
+
+      const countdownText = isOnline
+        ? (l.remainingSeconds > 0 ? `${l.remainingSeconds}s` : 'ESPERA')
+        : 'SIN SEÑAL';
+
+      const stateBadge = isOnline
+        ? `<span class="badge ${isGreen ? 'good' : isYellow ? 'warn' : 'bad'}">${l.state}</span>`
+        : `<span class="badge bad">DESCONECTADO</span>`;
+
+      const allocatedText = isOnline
+        ? `Tiempo verde asignado: <strong>${l.greenSecondsAllocated} s</strong>`
+        : `Tiempo verde asignado: <strong>—</strong>`;
+
+      const pedColor = !isOnline ? '#9ca3af' : (l.pedestrianSignal === 'WALK' ? '#22c55e' : '#ef4444');
+      const pedText = !isOnline ? 'Desconectado' : (l.pedestrianSignal === 'WALK' ? 'PASE (Verde)' : 'ALTO (Rojo)');
+
+      return `
+      <div style="background:var(--bg-card, #1c2430);border:1px solid ${isGreen ? 'var(--green, #22c55e)' : 'var(--border, #2d3748)'};border-radius:8px;padding:16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <div>
+            <strong style="font-size:15px;display:block;">${esc(l.name)}</strong>
+            <span style="font-size:11px;color:var(--muted);">${esc(l.carril)}</span>
+          </div>
+          ${stateBadge}
+        </div>
+
+        <!-- Semáforo visual interactivo -->
+        <div style="display:flex;align-items:center;gap:16px;">
+          <div style="background:#0a0e14;padding:8px 6px;border-radius:16px;display:flex;flex-direction:column;gap:6px;width:38px;align-items:center;border:2px solid #232a35;box-shadow:inset 0 2px 4px rgba(0,0,0,0.5);">
+            <div style="width:20px;height:20px;border-radius:50%;background:${isRed ? '#ef4444' : '#1a222d'};box-shadow:${isRed ? '0 0 10px #ef4444' : 'none'};"></div>
+            <div style="width:20px;height:20px;border-radius:50%;background:${isYellow ? '#eab308' : '#1a222d'};box-shadow:${isYellow ? '0 0 10px #eab308' : 'none'};"></div>
+            <div style="width:20px;height:20px;border-radius:50%;background:${isGreen ? '#22c55e' : '#1a222d'};box-shadow:${isGreen ? '0 0 10px #22c55e' : 'none'};"></div>
+          </div>
+
+          <div style="flex:1;">
+            <div style="font-size:26px;font-weight:700;color:${isGreen ? 'var(--green, #22c55e)' : isOnline ? 'var(--text)' : 'var(--muted)'};font-family:monospace;">
+              ${countdownText}
+            </div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px;">
+              ${allocatedText}
+            </div>
+            <div style="margin-top:8px;font-size:11px;display:flex;align-items:center;gap:6px;color:var(--text);">
+              <i data-lucide="footprints" style="color:${pedColor};"></i>
+              <span>Peatonal: <strong style="color:${pedColor};">${pedText}</strong></span>
+            </div>
+          </div>
+        </div>
+      </div>
+      `;
+    }).join('');
+
+    $('#lightsGrid').innerHTML = html;
+  }
+
+  function renderCameras(isOnline) {
+    const cams = currentNode.cameras || [];
+    const html = cams.map(c => {
+      const cls = c.classification || { autos: 0, combis: 0, motos: 0, peatones: 0, unidadesEmergencia: 0, totalVehicles: 0 };
+      const hasEmerg = isOnline && c.isOnline && cls.unidadesEmergencia > 0;
+      const camOnline = isOnline && c.isOnline;
+
+      return `
+      <div style="background:var(--bg-card,#1c2430);border:1px solid ${hasEmerg ? '#ef4444' : camOnline ? 'var(--border,#2d3748)' : 'rgba(239,68,68,0.3)'};border-radius:8px;padding:12px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <div>
+            <strong style="font-size:14px;display:block;">${esc(c.name)}</strong>
+            <span style="font-size:11px;color:var(--muted);">${esc(c.carrilObserved)} · IP: ${esc(c.ipAddress)}</span>
+          </div>
+          <span class="badge ${camOnline ? 'good' : 'bad'}">${camOnline ? 'En línea' : 'Sin señal'}</span>
+        </div>
+
+        <!-- Conteo de detección On-Edge -->
+        <div style="display:grid;grid-template-columns:repeat(5, 1fr);gap:6px;background:var(--bg-card-sub,#131922);padding:8px;border-radius:6px;text-align:center;">
+          <div><strong style="font-size:16px;color:var(--text);">${camOnline ? cls.autos : 0}</strong><span style="display:block;font-size:9px;color:var(--muted);">Autos</span></div>
+          <div><strong style="font-size:16px;color:#38bdf8;">${camOnline ? cls.combis : 0}</strong><span style="display:block;font-size:9px;color:var(--muted);">Combis</span></div>
+          <div><strong style="font-size:16px;color:#eab308;">${camOnline ? cls.motos : 0}</strong><span style="display:block;font-size:9px;color:var(--muted);">Motos</span></div>
+          <div><strong style="font-size:16px;color:#22c55e;">${camOnline ? cls.peatones : 0}</strong><span style="display:block;font-size:9px;color:var(--muted);">Peatones</span></div>
+          <div><strong style="font-size:16px;color:${hasEmerg ? '#ef4444' : 'var(--muted)'};">${camOnline ? cls.unidadesEmergencia : 0}</strong><span style="display:block;font-size:9px;color:${hasEmerg ? '#ef4444' : 'var(--muted)'};">Emerg.</span></div>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:6px;">
+          <span>Latencia ML: ${camOnline ? c.inferenceLatencyMs + ' ms' : '—'}</span>
+          <span>Confianza: ${camOnline ? c.confidenceScore + '%' : '—'}</span>
+        </div>
+      </div>
+      `;
+    }).join('');
+
+    $('#camsGrid').innerHTML = html;
+  }
+
+  function renderSolar(isOnline) {
+    const solar = currentNode.solarBackup || {
+      batteryPercent: 0,
+      batteryVoltage: 0.0,
+      solarPanelWatts: 0.0,
+      powerSource: 'Sin enlace de hardware',
+      estimatedAutonomyHours: 0.0
+    };
+
+    const voltageTxt = isOnline ? `${solar.batteryVoltage} V` : '0.0 V';
+    const wattsTxt = isOnline ? `${solar.solarPanelWatts} W` : '0.0 W';
+    const hoursTxt = isOnline ? `${solar.estimatedAutonomyHours} h` : '0.0 h';
+    const powerSrc = isOnline ? esc(solar.powerSource) : 'Sin telemetría de hardware';
+    const chargeBadge = isOnline ? '<span class="badge good">Cargando batería</span>' : '<span class="badge bad">Sin señal</span>';
+
+    $('#solarBox').innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:12px;margin-bottom:12px;">
+        <div style="background:var(--bg-card-sub, #131922);padding:12px;border-radius:6px;border:1px solid var(--border,#263140);text-align:center;">
+          <span style="display:block;font-size:11px;color:var(--muted);">Voltaje Batería</span>
+          <strong style="font-size:18px;color:${isOnline ? '#38bdf8' : 'var(--muted)'};">${voltageTxt}</strong>
+          <span style="display:block;font-size:10px;color:${isOnline ? 'var(--green)' : 'var(--muted)'};">${isOnline ? 'LiFePO4 Normal' : 'Sin señal'}</span>
+        </div>
+        <div style="background:var(--bg-card-sub, #131922);padding:12px;border-radius:6px;border:1px solid var(--border,#263140);text-align:center;">
+          <span style="display:block;font-size:11px;color:var(--muted);">Generación Solar</span>
+          <strong style="font-size:18px;color:${isOnline ? '#eab308' : 'var(--muted)'};">${wattsTxt}</strong>
+          <span style="display:block;font-size:10px;color:var(--muted);">Panel Monocristalino</span>
+        </div>
+        <div style="background:var(--bg-card-sub, #131922);padding:12px;border-radius:6px;border:1px solid var(--border,#263140);text-align:center;">
+          <span style="display:block;font-size:11px;color:var(--muted);">Autonomía Estimada</span>
+          <strong style="font-size:18px;color:${isOnline ? '#22c55e' : 'var(--muted)'};">${hoursTxt}</strong>
+          <span style="display:block;font-size:10px;color:var(--muted);">Sin Red Comercial</span>
+        </div>
+      </div>
+
+      <div style="background:rgba(255,255,255,0.03);padding:10px 14px;border-radius:6px;font-size:12px;display:flex;align-items:center;justify-content:space-between;">
+        <span><strong>Alimentación Primaria:</strong> ${powerSrc}</span>
+        ${chargeBadge}
+      </div>
+    `;
+
+    const pill = $('#powerPill');
+    if (pill) {
+      if (isOnline) {
+        pill.innerHTML = `<i class="dot" style="background:#eab308"></i>Solar LiFePO4: ${solar.batteryVoltage}V (${solar.batteryPercent}%)`;
+      } else {
+        pill.innerHTML = `<i class="dot" style="background:#9ca3af"></i>Solar: Sin telemetría`;
+      }
+    }
+  }
+
+  function renderEmergencyBanner(isOnline) {
+    const badge = $('#emergAlertBadge');
+    const btn = $('#emergBtn');
+
+    if (isOnline && isEmergencyActive) {
+      if (badge) badge.innerHTML = `<span class="badge bad" style="font-size:12px;padding:6px 12px;"><i class="dot" style="background:#ef4444;box-shadow:0 0 6px #ef4444;"></i>ONDA VERDE DE EMERGENCIA ACTIVA</span>`;
+      if (btn) {
+        btn.textContent = 'Desactivar Emergencia (Volver a ciclo adaptativo)';
+        btn.style.background = '#ef4444';
+        btn.style.color = '#fff';
+      }
+    } else {
+      if (badge) badge.innerHTML = isOnline ? `<span class="badge good">Ciclo Adaptativo ML</span>` : `<span class="badge bad">En espera de conexión</span>`;
+      if (btn) {
+        btn.innerHTML = `<i data-lucide="siren"></i>Simular Ambulancia en Av. Ejército`;
+        btn.style.background = 'transparent';
+        btn.style.color = '#ef4444';
+      }
+    }
+  }
+
+  function renderIncidents(list) {
+    if (!list || !list.length) {
+      $('#incList').innerHTML = '<li class="empty">No hay eventos registrados.</li>';
+      return;
+    }
+    const html = list.slice(0, 5).map(x => `
+      <li>
+        <div class="li-main">
+          <div>
+            <strong>${esc(x.title)}</strong>
+            <span class="sub">${esc(x.description || '')}</span>
+          </div>
+        </div>
+        <span class="badge ${x.severity === 'Alta' || x.severity === 'Crítica' ? 'bad' : 'good'}">${esc(x.status)}</span>
+      </li>
+    `).join('');
+    $('#incList').innerHTML = html;
+  }
+
+  // Event Listeners
+  $('#emergBtn')?.addEventListener('click', async () => {
+    try {
+      if (isEmergencyActive) {
+        await fetch('/api/v1/realtime/emergency-reset', { method: 'POST' });
+      } else {
+        await fetch('/api/v1/realtime/emergency-trigger?camId=CAM-01', { method: 'POST' });
+      }
+      await fetchRealtimeData();
+      await loadIncidents();
+    } catch (e) {
+      console.error(e);
+    }
   });
 
-  VS.onTick(() => {
-    syncBackendAndRender();
+  $('#refreshBtn')?.addEventListener('click', async () => {
+    await fetchRealtimeData();
+    await loadIncidents();
   });
 
-  st.sel = VS.intersections.slice().sort((a, b) => b.cong - a.cong)[0].id;
-  renderAll(); buildFlow(); buildDist();
-  syncBackendAndRender();
+  $('#simTeleBtn')?.addEventListener('click', async () => {
+    try {
+      await fetch('/api/v1/iot/simulate-telemetry', { method: 'POST' });
+      await fetchRealtimeData();
+      await loadIncidents();
+    } catch (e) {
+      console.error(e);
+    }
+  });
+
+  // Arranque
+  fetchRealtimeData();
+  loadIncidents();
+  setInterval(fetchRealtimeData, 3000);
 })();

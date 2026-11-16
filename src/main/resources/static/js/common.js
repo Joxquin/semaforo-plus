@@ -153,8 +153,8 @@
   VS.restartTimer = () => { clearInterval(tickTimer); const s = Number(VS.prefs.interval); if (s > 0) tickTimer = setInterval(VS.tick, s * 1000); };
   const NAV = [
     { id: 'dashboard', href: 'index.html', label: 'Dashboard', icon: 'layout-dashboard' },
-    { id: 'intersecciones', href: 'intersecciones.html', label: 'Intersecciones', icon: 'map-pin' },
-    { id: 'camaras', href: 'camaras.html', label: 'Cámaras', icon: 'video' },
+    { id: 'intersecciones', href: 'intersecciones.html', label: 'Intersección', icon: 'map-pin' },
+    { id: 'camaras', href: 'camaras.html', label: 'Cámaras (2x)', icon: 'video' },
     { id: 'analisis', href: 'analisis.html', label: 'Análisis', icon: 'chart-column' },
     { id: 'predicciones', href: 'predicciones.html', label: 'Predicciones', icon: 'sparkles' },
     { id: 'incidencias', href: 'incidencias.html', label: 'Incidencias', icon: 'triangle-alert' },
@@ -176,8 +176,8 @@
     return { html: (items + pred) || '<div class="pop-empty">No hay notificaciones nuevas.</div>', count: list.length + (n.predictions ? 1 : 0) };
   }
   function updateTopbar() {
-    const ok = VS.intersections.filter(i => i.status !== 'Sin datos').length, pill = $('#sensorPill');
-    if (pill) { pill.innerHTML = `<i class="dot" style="color:${ok < VS.intersections.length ? 'var(--yellow)' : 'var(--green)'}"></i>Sensores ${ok}/${VS.intersections.length}`; }
+    const ok = VS.intersections.filter(i => i.status !== 'Sin datos' && i.status !== 'Sin señal' && i.iotConnected).length, pill = $('#sensorPill');
+    if (pill) { pill.innerHTML = `<i class="dot" style="color:${ok < VS.intersections.length ? 'var(--red)' : 'var(--green)'}"></i>IoT ${ok}/${VS.intersections.length}`; }
     const u = $('#updTxt'); if (u) { const d = new Date(VS.lastUpdate); u.textContent = `Actualizado ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; }
     const b = bellList(), m = $('#bellMenuList'); if (m) { m.innerHTML = b.html; VS.icons(); }
     const c = $('#bellCount'); if (c) { c.textContent = b.count; c.hidden = !b.count; }

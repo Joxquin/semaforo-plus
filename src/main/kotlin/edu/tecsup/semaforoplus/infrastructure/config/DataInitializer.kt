@@ -56,126 +56,21 @@ class DataInitializer(
                 Intersection(
                     id = 1L,
                     code = "INT-01",
-                    name = "Av. Ejército × Av. Salaverry",
+                    name = "Av. Ejército × Calle Los Arces",
                     zone = "Yanahuara",
-                    status = "Operativa",
+                    status = "Sin señal",
                     mode = "ESP32 Adaptativo (Local 100%)",
-                    congestionPercent = 34,
-                    greenNsSeconds = 38,
-                    greenEwSeconds = 30,
-                    solarBatteryLevel = 96,
-                    esp32Status = "AUTÓNOMO_LOCAL_ACTIVO",
-                    esp32CamStatus = "2/2 ESP32-CAM Activas (On-Edge ML)",
-                    emergencyPriorityActive = false
-                ),
-                Intersection(
-                    id = 2L,
-                    code = "INT-02",
-                    name = "Av. Goyeneche × Av. Parra",
-                    zone = "Centro",
-                    status = "Atención",
-                    mode = "Adaptativo",
-                    congestionPercent = 78,
-                    greenNsSeconds = 45,
-                    greenEwSeconds = 32,
-                    solarBatteryLevel = 88,
-                    esp32Status = "En línea",
-                    esp32CamStatus = "Cámaras conectadas",
-                    emergencyPriorityActive = false
-                ),
-                Intersection(
-                    id = 3L,
-                    code = "INT-03",
-                    name = "Av. Dolores × Av. Mariscal Castilla",
-                    zone = "Paucarpata",
-                    status = "Operativa",
-                    mode = "Automático",
-                    congestionPercent = 52,
-                    greenNsSeconds = 36,
-                    greenEwSeconds = 34,
-                    solarBatteryLevel = 92,
-                    esp32Status = "En línea",
-                    esp32CamStatus = "Cámaras conectadas",
-                    emergencyPriorityActive = false
-                ),
-                Intersection(
-                    id = 4L,
-                    code = "INT-04",
-                    name = "Av. Venezuela × Av. Jesús",
-                    zone = "Miraflores",
-                    status = "Operativa",
-                    mode = "Automático",
-                    congestionPercent = 27,
-                    greenNsSeconds = 32,
-                    greenEwSeconds = 32,
-                    solarBatteryLevel = 95,
-                    esp32Status = "En línea",
-                    esp32CamStatus = "Cámaras conectadas",
-                    emergencyPriorityActive = false
-                ),
-                Intersection(
-                    id = 5L,
-                    code = "INT-05",
-                    name = "Av. Kennedy × Av. Ejército",
-                    zone = "Cayma",
-                    status = "Operativa",
-                    mode = "Adaptativo",
-                    congestionPercent = 44,
-                    greenNsSeconds = 34,
-                    greenEwSeconds = 36,
-                    solarBatteryLevel = 90,
-                    esp32Status = "En línea",
-                    esp32CamStatus = "Cámaras conectadas",
-                    emergencyPriorityActive = false
-                ),
-                Intersection(
-                    id = 6L,
-                    code = "INT-06",
-                    name = "Puente Bolognesi × Av. Independencia",
-                    zone = "Centro",
-                    status = "Atención",
-                    mode = "Manual",
-                    congestionPercent = 86,
-                    greenNsSeconds = 48,
-                    greenEwSeconds = 30,
-                    solarBatteryLevel = 85,
-                    esp32Status = "En línea",
-                    esp32CamStatus = "Cámaras conectadas",
-                    emergencyPriorityActive = false
-                ),
-                Intersection(
-                    id = 7L,
-                    code = "INT-07",
-                    name = "Av. Aviación × Av. Alcides Carrión",
-                    zone = "Miraflores",
-                    status = "Operativa",
-                    mode = "Automático",
-                    congestionPercent = 61,
-                    greenNsSeconds = 40,
-                    greenEwSeconds = 30,
-                    solarBatteryLevel = 91,
-                    esp32Status = "En línea",
-                    esp32CamStatus = "Cámaras conectadas",
-                    emergencyPriorityActive = false
-                ),
-                Intersection(
-                    id = 8L,
-                    code = "INT-08",
-                    name = "Av. La Marina × Av. Metropolitana",
-                    zone = "J. L. Bustamante",
-                    status = "Sin datos",
-                    mode = "Automático",
-                    congestionPercent = 39,
-                    greenNsSeconds = 34,
-                    greenEwSeconds = 34,
+                    congestionPercent = 0,
+                    greenNsSeconds = 0,
+                    greenEwSeconds = 0,
                     solarBatteryLevel = 0,
-                    esp32Status = "Sin señal",
-                    esp32CamStatus = "Sin señal",
+                    esp32Status = "DESCONECTADO",
+                    esp32CamStatus = "0/2 ESP32-CAM (Sin señal)",
                     emergencyPriorityActive = false
                 )
             )
             loadIntersectionPort.saveAll(list)
-            logger.info("8 metropolitan intersections initialized in H2 database.")
+            logger.info("Única intersección real inicializada: INT-01 (Av. Ejército × Calle Los Arces) con 2 semáforos y 2 ESP32-CAM.")
         }
     }
 
@@ -183,107 +78,26 @@ class DataInitializer(
         if (loadIncidentPort.count() == 0L) {
             val list = listOf(
                 Incident(
-                    code = "INC-1041",
-                    title = "Congestión elevada",
-                    intersectionCode = "INT-06",
+                    code = "INC-1001",
+                    title = "Dispositivos IoT Desconectados",
+                    intersectionCode = "INT-01",
                     severity = "Alta",
                     status = "Nueva",
-                    description = "Congestión sostenida por encima del 85 % en Puente Bolognesi; cola estimada de 14 vehículos hacia Av. Independencia.",
-                    reportedAt = LocalDateTime.now().minusMinutes(6)
+                    description = "No se detecta enlace activo con el microcontrolador central ESP32 ni con las cámaras ESP32-CAM. Mostrando estado de espera sin señal.",
+                    reportedAt = LocalDateTime.now().minusMinutes(2)
                 ),
                 Incident(
-                    code = "INC-1040",
-                    title = "Posible incidente vial",
-                    intersectionCode = "INT-06",
-                    severity = "Alta",
-                    status = "Revisada",
-                    description = "Se detectan vehículos detenidos en el carril central; posible colisión leve. Pendiente de confirmación visual.",
-                    reportedAt = LocalDateTime.now().minusMinutes(22)
-                ),
-                Incident(
-                    code = "INC-1039",
-                    title = "Incremento repentino de vehículos",
-                    intersectionCode = "INT-02",
-                    severity = "Media",
-                    status = "Nueva",
-                    description = "Aumento del 22 % en el conteo de vehículos en 5 minutos en el acceso norte de Av. Goyeneche.",
-                    reportedAt = LocalDateTime.now().minusMinutes(14)
-                ),
-                Incident(
-                    code = "INC-1038",
-                    title = "Pérdida de datos de sensor",
-                    intersectionCode = "INT-08",
-                    severity = "Media",
-                    status = "Nueva",
-                    description = "El sensor ultrasónico del acceso norte no envía lecturas desde hace 12 minutos. Se muestran los últimos valores registrados.",
-                    reportedAt = LocalDateTime.now().minusMinutes(38)
-                ),
-                Incident(
-                    code = "INC-1037",
-                    title = "Congestión elevada",
-                    intersectionCode = "INT-02",
-                    severity = "Alta",
-                    status = "Nueva",
-                    description = "Tiempo de espera medio superior a 90 s en Av. Goyeneche × Av. Parra durante más de 10 minutos.",
-                    reportedAt = LocalDateTime.now().minusMinutes(31)
-                ),
-                Incident(
-                    code = "INC-1036",
-                    title = "Semáforo en modo manual",
-                    intersectionCode = "INT-06",
-                    severity = "Baja",
-                    status = "Revisada",
-                    description = "El operador de turno cambió la intersección a modo manual para gestionar el evento en curso.",
-                    reportedAt = LocalDateTime.now().minusMinutes(47)
-                ),
-                Incident(
-                    code = "INC-1032",
-                    title = "Cámara degradada",
-                    intersectionCode = "INT-02",
-                    severity = "Baja",
-                    status = "Nueva",
-                    description = "CAM-03 reporta calidad de imagen reducida y pérdida intermitente de cuadros.",
-                    reportedAt = LocalDateTime.now().minusMinutes(55)
-                ),
-                Incident(
-                    code = "INC-1035",
-                    title = "Vehículo detenido",
-                    intersectionCode = "INT-07",
-                    severity = "Media",
-                    status = "Resuelta",
-                    description = "Vehículo detenido en el carril derecho de Av. Aviación; retirado por el personal de apoyo.",
-                    reportedAt = LocalDateTime.now().minusMinutes(92)
-                ),
-                Incident(
-                    code = "INC-1034",
-                    title = "Desfase de ciclo",
-                    intersectionCode = "INT-05",
+                    code = "INC-1002",
+                    title = "Respaldo solar en flotación",
+                    intersectionCode = "INT-01",
                     severity = "Baja",
                     status = "Resuelta",
-                    description = "Desfase de 3 s entre el ciclo programado y el medido. Corregido tras resincronizar el controlador.",
-                    reportedAt = LocalDateTime.now().minusMinutes(140)
-                ),
-                Incident(
-                    code = "INC-1033",
-                    title = "Incremento repentino de vehículos",
-                    intersectionCode = "INT-03",
-                    severity = "Media",
-                    status = "Resuelta",
-                    description = "Pico de vehículos por evento en la zona; el flujo volvió a valores normales sin intervención.",
-                    reportedAt = LocalDateTime.now().minusMinutes(185)
-                ),
-                Incident(
-                    code = "INC-1031",
-                    title = "Congestión elevada",
-                    intersectionCode = "INT-07",
-                    severity = "Media",
-                    status = "Resuelta",
-                    description = "Congestión del 72 % en hora punta; se resolvió al ampliar el verde N–S en el plan adaptativo.",
-                    reportedAt = LocalDateTime.now().minusMinutes(260)
+                    description = "Sistema preparado para autonomía híbrida (Solar LiFePO4 + Red) en Av. Ejército.",
+                    reportedAt = LocalDateTime.now().minusMinutes(30)
                 )
             )
             loadIncidentPort.saveAll(list)
-            logger.info("11 incidents initialized in H2 database.")
+            logger.info("Incidencias inicializadas para nodo único INT-01.")
         }
     }
 }

@@ -30,7 +30,7 @@ class TrafficManagementService(
                 Intersection(
                     id = 1L,
                     code = "INT-01",
-                    name = "Av. Ejército × Av. Salaverry",
+                    name = "Av. Ejército × Calle Los Arces",
                     zone = "Yanahuara",
                     status = if (node.iotConnected) "Operativa" else "Sin datos",
                     mode = if (node.activeEmergencyPriority) "ONDA VERDE EMERGENCIA" else "ESP32 Adaptativo (Local 100%)",
@@ -47,10 +47,14 @@ class TrafficManagementService(
         return dbIntersections.map { inter ->
             if (inter.code == "INT-01") {
                 inter.copy(
-                    status = if (node.iotConnected) "Operativa" else "Sin datos",
-                    mode = if (node.activeEmergencyPriority) "ONDA VERDE EMERGENCIA" else "ESP32 Adaptativo (Local 100%)",
-                    solarBatteryLevel = node.solarBackup.batteryPercent,
-                    esp32Status = node.esp32CentralStatus,
+                    status = if (node.iotConnected) "Operativa" else "Sin señal",
+                    mode = if (!node.iotConnected) "ESP32 Desconectado" else if (node.activeEmergencyPriority) "ONDA VERDE EMERGENCIA" else "ESP32 Adaptativo (Local 100%)",
+                    congestionPercent = if (node.iotConnected) inter.congestionPercent else 0,
+                    greenNsSeconds = if (node.iotConnected) (node.trafficLights.find { it.id == "SEM-01" }?.greenSecondsAllocated ?: 38) else 0,
+                    greenEwSeconds = if (node.iotConnected) (node.trafficLights.find { it.id == "SEM-02" }?.greenSecondsAllocated ?: 30) else 0,
+                    solarBatteryLevel = if (node.iotConnected) node.solarBackup.batteryPercent else 0,
+                    esp32Status = if (node.iotConnected) node.esp32CentralStatus else "DESCONECTADO",
+                    esp32CamStatus = if (node.iotConnected) "2/2 ESP32-CAM Activas (ML On-Edge)" else "0/2 ESP32-CAM (Sin señal)",
                     emergencyPriorityActive = node.activeEmergencyPriority
                 )
             } else {

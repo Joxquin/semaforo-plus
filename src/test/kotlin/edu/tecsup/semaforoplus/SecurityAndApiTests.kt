@@ -72,9 +72,9 @@ class SecurityAndApiTests {
         mockMvc.perform(get("/api/v1/intersections"))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$").isArray)
-            .andExpect(jsonPath("$.length()").value(8))
+            .andExpect(jsonPath("$.length()").value(1))
             .andExpect(jsonPath("$[0].code").value("INT-01"))
-            .andExpect(jsonPath("$[0].name").value("Av. Ejército × Av. Salaverry"))
+            .andExpect(jsonPath("$[0].name").value("Av. Ejército × Calle Los Arces"))
     }
 
     @Test

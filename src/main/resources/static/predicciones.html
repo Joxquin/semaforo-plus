@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Predicciones · VIA SMART</title>
-<meta name="description" content="VIA SMART: prototipo visual de supervisión inteligente del tráfico urbano (datos ficticios).">
+<title>Predicciones · Semáforo+ (TECSUP)</title>
+<meta name="description" content="Semáforo+: Estimación de colas y tiempos verdes adaptativos en Av. Ejército (TECSUP · ODS 11).">
 <link rel="icon" href="assets/icons/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12,7 +12,7 @@
 <link rel="stylesheet" href="css/styles.css">
 <script>try{var p=JSON.parse(localStorage.getItem('vs_prefs')||'{}');if(p.theme)document.documentElement.dataset.theme=p.theme;if(p.density)document.documentElement.dataset.density=p.density}catch(e){}</script>
 </head>
-<body data-page="predicciones" data-title="Predicciones" data-subtitle="Módulo inteligente · simulación">
+<body data-page="predicciones" data-title="Predicción de Tráfico" data-subtitle="Estimación adaptativa de colas y tiempos verdes en cruce INT-01">
 <a class="skip-link" href="#content">Saltar al contenido</a>
 <div class="app">
 <aside class="sidebar" id="sidebar" aria-label="Navegación lateral"></aside>
@@ -20,7 +20,7 @@
 <div class="main">
 <header class="topbar" id="topbar"></header>
 <main class="content" id="content" tabindex="-1">
-<div class="sim-banner"><i data-lucide="flask-conical"></i><span><strong>Simulación.</strong> Las predicciones y recomendaciones se calculan con reglas sencillas sobre datos ficticios; no existe ningún modelo de aprendizaje automático.</span></div>
+<div class="sim-banner"><i data-lucide="sparkles"></i><span><strong>Estimación adaptativa local.</strong> El microcontrolador central ESP32 calcula los tiempos verdes requeridos según la tasa de llegada de vehículos detectada por las cámaras ESP32-CAM (Límites: 15s mín – 60s máx).</span></div>
 <div class="toolbar no-print">
   <div class="field"><span class="label" id="hzLabel">Horizonte de predicción</span><div class="seg" id="hzSeg" role="group" aria-labelledby="hzLabel"></div></div>
 </div>

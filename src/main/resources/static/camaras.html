@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Cámaras · VIA SMART</title>
-<meta name="description" content="VIA SMART: prototipo visual de supervisión inteligente del tráfico urbano (datos ficticios).">
+<title>Cámaras ESP32-CAM · Semáforo+ (TECSUP)</title>
+<meta name="description" content="Semáforo+: Monitoreo de 2 módulos ESP32-CAM con inferencia On-Edge en Av. Ejército (TECSUP · ODS 11).">
 <link rel="icon" href="assets/icons/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12,7 +12,7 @@
 <link rel="stylesheet" href="css/styles.css">
 <script>try{var p=JSON.parse(localStorage.getItem('vs_prefs')||'{}');if(p.theme)document.documentElement.dataset.theme=p.theme;if(p.density)document.documentElement.dataset.density=p.density}catch(e){}</script>
 </head>
-<body data-page="camaras" data-title="Cámaras" data-subtitle="Centro de monitoreo visual simulado">
+<body data-page="camaras" data-title="Cámaras ESP32-CAM" data-subtitle="2 Módulos ESP32-CAM (Poste Norte y Poste Este) · Visión Artificial On-Edge">
 <a class="skip-link" href="#content">Saltar al contenido</a>
 <div class="app">
 <aside class="sidebar" id="sidebar" aria-label="Navegación lateral"></aside>
@@ -20,7 +20,7 @@
 <div class="main">
 <header class="topbar" id="topbar"></header>
 <main class="content" id="content" tabindex="-1">
-<div class="sim-banner"><i data-lucide="info"></i><span>Las vistas son ilustraciones generadas por la aplicación. No hay cámaras reales ni transmisiones conectadas.</span></div>
+<div class="sim-banner"><i data-lucide="info"></i><span>Monitoreo de inferencia en tiempo real de las 2 cámaras ESP32-CAM instaladas en lo alto de cada poste en Av. Ejército × Calle Los Arces. Si no están transmitiendo datos reales, se muestra estado 'Sin señal'.</span></div>
 <div class="toolbar no-print">
   <div class="field grow"><label for="q">Buscar cámara</label><div class="search"><i data-lucide="search"></i><input id="q" type="search" placeholder="Código, nombre o vía" autocomplete="off"></div></div>
   <div class="field"><label for="fStt">Estado</label><select id="fStt"></select></div>

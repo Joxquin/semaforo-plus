@@ -1,11 +1,11 @@
-package edu.tecsup.semaforoplus.config
+package edu.tecsup.semaforoplus.infrastructure.config
 
+import edu.tecsup.semaforoplus.application.port.out.LoadIncidentPort
+import edu.tecsup.semaforoplus.application.port.out.LoadIntersectionPort
+import edu.tecsup.semaforoplus.application.port.out.LoadUserPort
 import edu.tecsup.semaforoplus.domain.model.Incident
 import edu.tecsup.semaforoplus.domain.model.Intersection
 import edu.tecsup.semaforoplus.domain.model.User
-import edu.tecsup.semaforoplus.domain.repository.IncidentRepository
-import edu.tecsup.semaforoplus.domain.repository.IntersectionRepository
-import edu.tecsup.semaforoplus.domain.repository.UserRepository
 import org.slf4j.LoggerFactory
 import org.springframework.boot.CommandLineRunner
 import org.springframework.security.crypto.password.PasswordEncoder
@@ -14,9 +14,9 @@ import java.time.LocalDateTime
 
 @Component
 class DataInitializer(
-    private val userRepository: UserRepository,
-    private val intersectionRepository: IntersectionRepository,
-    private val incidentRepository: IncidentRepository,
+    private val loadUserPort: LoadUserPort,
+    private val loadIntersectionPort: LoadIntersectionPort,
+    private val loadIncidentPort: LoadIncidentPort,
     private val passwordEncoder: PasswordEncoder
 ) : CommandLineRunner {
 
@@ -26,11 +26,11 @@ class DataInitializer(
         initUsers()
         initIntersections()
         initIncidents()
-        logger.info("Semáforo+ (TECSUP Arequipa) data initialized successfully in H2 database.")
+        logger.info("Semáforo+ (TECSUP Arequipa) data initialized successfully in H2 via Hexagonal Output Ports.")
     }
 
     private fun initUsers() {
-        if (userRepository.count() == 0L) {
+        if (loadUserPort.count() == 0L) {
             val operator = User(
                 username = "operador",
                 password = passwordEncoder.encode("via2026"),
@@ -45,13 +45,13 @@ class DataInitializer(
                 role = "ROLE_ADMIN",
                 enabled = true
             )
-            userRepository.saveAll(listOf(operator, admin))
+            loadUserPort.saveAll(listOf(operator, admin))
             logger.info("Default users seeded: 'operador' and 'admin'")
         }
     }
 
     private fun initIntersections() {
-        if (intersectionRepository.count() == 0L) {
+        if (loadIntersectionPort.count() == 0L) {
             val list = listOf(
                 Intersection(
                     code = "INT-01",
@@ -138,13 +138,13 @@ class DataInitializer(
                     emergencyPriorityActive = false
                 )
             )
-            intersectionRepository.saveAll(list)
+            loadIntersectionPort.saveAll(list)
             logger.info("Sample Semáforo+ intersections seeded on Av. Ejército & Arequipa.")
         }
     }
 
     private fun initIncidents() {
-        if (incidentRepository.count() == 0L) {
+        if (loadIncidentPort.count() == 0L) {
             val list = listOf(
                 Incident(
                     code = "INC-101",
@@ -174,7 +174,7 @@ class DataInitializer(
                     reportedAt = LocalDateTime.now().minusHours(2)
                 )
             )
-            incidentRepository.saveAll(list)
+            loadIncidentPort.saveAll(list)
             logger.info("Sample Semáforo+ incidents seeded.")
         }
     }

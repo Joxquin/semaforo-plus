@@ -1,6 +1,6 @@
-package edu.tecsup.semaforoplus.service
+package edu.tecsup.semaforoplus.infrastructure.adapter.`in`.security
 
-import edu.tecsup.semaforoplus.domain.repository.UserRepository
+import edu.tecsup.semaforoplus.application.port.out.LoadUserPort
 import org.springframework.security.core.authority.SimpleGrantedAuthority
 import org.springframework.security.core.userdetails.User
 import org.springframework.security.core.userdetails.UserDetails
@@ -10,18 +10,18 @@ import org.springframework.stereotype.Service
 
 @Service
 class UserDetailsServiceImpl(
-    private val userRepository: UserRepository
+    private val loadUserPort: LoadUserPort
 ) : UserDetailsService {
 
     override fun loadUserByUsername(username: String): UserDetails {
-        val user = userRepository.findByUsername(username)
-            .orElseThrow { UsernameNotFoundException("Usuario no encontrado: $username") }
+        val domainUser = loadUserPort.findByUsername(username)
+            ?: throw UsernameNotFoundException("Usuario no encontrado: $username")
 
         return User.builder()
-            .username(user.username)
-            .password(user.password)
-            .authorities(listOf(SimpleGrantedAuthority(user.role)))
-            .disabled(!user.enabled)
+            .username(domainUser.username)
+            .password(domainUser.password)
+            .authorities(listOf(SimpleGrantedAuthority(domainUser.role)))
+            .disabled(!domainUser.enabled)
             .build()
     }
 }

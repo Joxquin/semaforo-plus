@@ -1,4 +1,4 @@
-package edu.tecsup.semaforoplus.config
+package edu.tecsup.semaforoplus.infrastructure.config
 
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration

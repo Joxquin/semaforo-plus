@@ -1,4 +1,4 @@
-package edu.tecsup.semaforoplus.controller
+package edu.tecsup.semaforoplus.infrastructure.adapter.`in`.web
 
 import org.springframework.stereotype.Controller
 import org.springframework.web.bind.annotation.GetMapping

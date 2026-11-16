@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Intersecciones · Semáforo+ (TECSUP)</title>
+<meta name="description" content="Semáforo+: Sistema adaptativo de innovación y movilidad urbana (TECSUP Arequipa · ODS 11 · ESP32).">
+<link rel="icon" href="assets/icons/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="css/styles.css">
+<script>try{var p=JSON.parse(localStorage.getItem('vs_prefs')||'{}');if(p.theme)document.documentElement.dataset.theme=p.theme;if(p.density)document.documentElement.dataset.density=p.density}catch(e){}</script>
+</head>
+<body data-page="intersecciones" data-title="Intersecciones" data-subtitle="Supervisión de las intersecciones registradas">
+<a class="skip-link" href="#content">Saltar al contenido</a>
+<div class="app">
+<aside class="sidebar" id="sidebar" aria-label="Navegación lateral"></aside>
+<div class="scrim" id="scrim"></div>
+<div class="main">
+<header class="topbar" id="topbar"></header>
+<main class="content" id="content" tabindex="-1">
+<p class="lead">Consulta el estado de cada intersección, filtra por nivel de congestión, zona o modo de operación y abre su detalle.</p>
+<section class="summary" id="summary" aria-label="Resumen de intersecciones"></section>
+<section class="card">
+  <div class="toolbar">
+    <div class="field grow"><label for="q">Buscar</label><div class="search"><i data-lucide="search"></i><input id="q" type="search" placeholder="Nombre, vía, zona o código" autocomplete="off"></div></div>
+    <div class="field"><label for="fLvl">Congestión</label><select id="fLvl"></select></div>
+    <div class="field"><label for="fStt">Estado</label><select id="fStt"></select></div>
+    <div class="field"><label for="fZone">Zona</label><select id="fZone"></select></div>
+    <div class="field"><label for="fMode">Modo</label><select id="fMode"></select></div>
+    <button class="btn" id="clear" type="button">Limpiar filtros</button>
+  </div>
+  <p class="muted count" id="count" aria-live="polite"></p>
+  <div class="table-wrap"><table id="tbl"><caption class="sr-only">Intersecciones registradas</caption><thead></thead><tbody></tbody></table></div>
+</section>
+</main>
+</div>
+</div>
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script src="js/data.js"></script>
+<script src="js/common.js"></script>
+<script src="js/intersecciones.js"></script>
+</body>
+</html>

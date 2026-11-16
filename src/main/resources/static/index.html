@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Centro de control de tráfico · Semáforo+ (TECSUP)</title>
+<meta name="description" content="Semáforo+: Sistema adaptativo de innovación y movilidad urbana (TECSUP Arequipa · ODS 11 · ESP32).">
+<link rel="icon" href="assets/icons/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="css/styles.css">
+<script>try{var p=JSON.parse(localStorage.getItem('vs_prefs')||'{}');if(p.theme)document.documentElement.dataset.theme=p.theme;if(p.density)document.documentElement.dataset.density=p.density}catch(e){}</script>
+</head>
+<body data-page="dashboard" data-title="Centro de control de tráfico" data-subtitle="Red vial adaptativa de Arequipa (Av. Ejército) · TECSUP · ODS 11">
+<a class="skip-link" href="#content">Saltar al contenido</a>
+<div class="app">
+<aside class="sidebar" id="sidebar" aria-label="Navegación lateral"></aside>
+<div class="scrim" id="scrim"></div>
+<div class="main">
+<header class="topbar" id="topbar"></header>
+<main class="content" id="content" tabindex="-1">
+<div class="toolbar no-print">
+  <div class="field"><label for="zoneSel">Zona</label><select id="zoneSel"></select></div>
+  <div class="field"><label for="periodSel">Periodo</label><select id="periodSel"></select></div>
+  <div class="toolbar-spacer"></div>
+  <button class="btn" id="refreshBtn" type="button"><i data-lucide="refresh-cw"></i>Actualizar datos</button>
+</div>
+<section class="kpis" id="kpis" aria-label="Indicadores principales"></section>
+<div class="grid">
+  <article class="card span-8" data-widget="map">
+    <div class="card-head"><div><h2>Red vial monitoreada</h2><p>Esquema ilustrativo · el color de cada vía indica su congestión</p></div><div class="legend" id="mapLegend"></div></div>
+    <div class="map-scroll"><div id="map" class="map-wrap"></div></div>
+    <div id="mapDetail" class="map-detail" aria-live="polite"></div>
+  </article>
+  <div class="span-4 stack">
+    <article class="card" data-widget="pred">
+      <div class="card-head"><div><h2>Predicción a 15 minutos</h2><p>Simulación, no es un modelo real</p></div><a class="btn btn-sm" href="predicciones.html">Ver más</a></div>
+      <ul class="list" id="predList"></ul>
+    </article>
+    <article class="card" data-widget="inc">
+      <div class="card-head"><div><h2>Incidencias recientes</h2></div><a class="btn btn-sm" href="incidencias.html">Gestionar</a></div>
+      <ul class="list" id="incList"></ul>
+    </article>
+  </div>
+  <article class="card span-7" data-widget="flow">
+    <div class="card-head"><div><h2>Flujo vehicular</h2><p id="flowSub">Vehículos por hora</p></div></div>
+    <div class="chart-box"><canvas id="flowChart" aria-label="Gráfico de flujo vehicular por hora" role="img"></canvas></div>
+  </article>
+  <article class="card span-5" data-widget="dist">
+    <div class="card-head"><div><h2>Distribución de congestión</h2><p id="distSub">Intersecciones por nivel</p></div></div>
+    <div class="chart-box"><canvas id="distChart" aria-label="Distribución de congestión" role="img"></canvas></div>
+  </article>
+  <article class="card span-12" data-widget="lights">
+    <div class="card-head"><div><h2>Estado de los semáforos</h2><p>Fase en curso y modo de operación</p></div><a class="btn btn-sm" href="intersecciones.html">Ver todas</a></div>
+    <div class="table-wrap"><table id="lightsTbl"><caption class="sr-only">Estado resumido de los semáforos</caption><thead><tr><th>Intersección</th><th>Zona</th><th>Fase actual</th><th>Modo</th><th>Congestión</th><th>Estado</th><th><span class="sr-only">Acciones</span></th></tr></thead><tbody></tbody></table></div>
+  </article>
+</div>
+</main>
+</div>
+</div>
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="js/data.js"></script>
+<script src="js/common.js"></script>
+<script src="js/dashboard.js"></script>
+</body>
+</html>

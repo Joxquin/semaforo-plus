@@ -137,9 +137,12 @@
   VS.onSecond = f => secFns.push(f);
   VS.lastUpdate = Date.now();
   VS.tick = () => {
+    const off = OFFS[VS.prefs.scenario] || 0;
     VS.intersections.forEach(i => {
-      if (i.status === 'Sin datos' || !i.iotConnected) return;
-      D.derive(i);
+      if (i.status === 'Sin datos') return;       // sin lecturas: se mantiene el último valor
+      const target = clamp(i.base + off, 5, 98);
+      const d = Math.round((target - i.cong) * .2 + (Math.random() - .5) * 5);
+      i.cong = clamp(i.cong + clamp(d, -3, 3), 5, 98); D.derive(i);
       if (i.cong >= 85 && !i.alerted && VS.prefs.notif.critical && VS.prefs.notif.toasts) { i.alerted = true; VS.toast(`${i.id}: la congestión supera el 85 %. Revisa la intersección.`, 'warn'); }
       if (i.cong < 80) i.alerted = false;
     });
@@ -174,7 +177,7 @@
   }
   function updateTopbar() {
     const ok = VS.intersections.filter(i => i.status !== 'Sin datos').length, pill = $('#sensorPill');
-    if (pill) { pill.innerHTML = `<i class="dot" style="color:${ok < VS.intersections.length ? 'var(--yellow)' : 'var(--green)'}"></i>2 Semáforos · 2 ESP32-CAM`; }
+    if (pill) { pill.innerHTML = `<i class="dot" style="color:${ok < VS.intersections.length ? 'var(--yellow)' : 'var(--green)'}"></i>Sensores ${ok}/${VS.intersections.length}`; }
     const u = $('#updTxt'); if (u) { const d = new Date(VS.lastUpdate); u.textContent = `Actualizado ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; }
     const b = bellList(), m = $('#bellMenuList'); if (m) { m.innerHTML = b.html; VS.icons(); }
     const c = $('#bellCount'); if (c) { c.textContent = b.count; c.hidden = !b.count; }
@@ -188,7 +191,7 @@
     const b = document.body, cur = b.dataset.nav || b.dataset.page;
     $('#sidebar').innerHTML = `<a class="brand" href="index.html" aria-label="Semáforo+, ir al dashboard">${LOGO}<span class="brand-text"><strong>Semáforo+</strong><small>Movilidad Inteligente · TECSUP</small></span></a>
       <nav class="nav" aria-label="Módulos">${NAV.map(n => `<a href="${n.href}" title="${n.label}"${n.id === cur ? ' aria-current="page"' : ''}><i data-lucide="${n.icon}"></i><span class="nav-label">${n.label}</span></a>`).join('')}</nav>
-      <div class="side-foot"><div class="side-note"><i class="dot" style="color:var(--green)"></i>ODS 11 · TECSUP Arequipa<small>2 Semáforos + 2 ESP32-CAM · Av. Ejército</small></div></div>`;
+      <div class="side-foot"><div class="side-note"><i class="dot" style="color:var(--green)"></i>ODS 11 · TECSUP Arequipa<small>Red adaptativa · ESP32 + ESP32-CAM</small></div></div>`;
     $('#topbar').innerHTML = `<button type="button" class="icon-btn" id="menuBtn" aria-label="Alternar menú lateral" aria-expanded="false"><i data-lucide="menu"></i></button>
       <div class="page-title"><h1>${esc(b.dataset.title)}</h1><p>${esc(b.dataset.subtitle || '')}</p></div>
       <div class="top-right">

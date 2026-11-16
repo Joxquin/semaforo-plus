@@ -7,7 +7,7 @@
     root.innerHTML = `<div class="card empty"><h2>Intersección no encontrada</h2><p>El código «${esc(id)}» no existe en los datos de demostración.</p><p style="margin-top:14px"><a class="btn btn-primary" href="intersecciones.html">Volver al listado</a></p></div>`;
     return;
   }
-  document.title = `${i.name} · Semáforo+ (TECSUP)`;
+  document.title = `${i.name} · VIA SMART`;
   const AX = { N: 'Norte', S: 'Sur', E: 'Este', O: 'Oeste' };
   const L = VS.intersections, k = L.indexOf(i), prev = L[(k + L.length - 1) % L.length], next = L[(k + 1) % L.length];
   const session = [];   // eventos registrados por el operador durante esta visita (solo demostración)

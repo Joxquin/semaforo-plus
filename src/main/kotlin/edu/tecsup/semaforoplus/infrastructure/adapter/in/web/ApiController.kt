@@ -49,29 +49,25 @@ class ApiController(
 
     @GetMapping("/intersections")
     fun getIntersections(): List<Intersection> {
+        return getIntersectionsUseCase.getIntersections()
+    }
+
+    @GetMapping("/cameras")
+    fun getCameras(): List<Map<String, Any>> {
         val node = getRealtimeNodeUseCase.getNode()
-        // If IoT is not connected, the intersection status shows real disconnected state
-        return if (!node.iotConnected) {
-            listOf(
-                Intersection(
-                    id = 1L,
-                    code = "INT-01",
-                    name = "Av. Ejército × Calle Los Arces",
-                    zone = "Yanahuara / Cayma",
-                    status = "Sin enlace IoT",
-                    mode = "ESP32 Desconectado (Sin señal)",
-                    congestionPercent = 0,
-                    greenNsSeconds = 0,
-                    greenEwSeconds = 0,
-                    solarBatteryLevel = 0,
-                    esp32Status = "DESCONECTADO",
-                    esp32CamStatus = "0/2 Cámaras (Sin señal)",
-                    emergencyPriorityActive = false
-                )
-            )
-        } else {
-            getIntersectionsUseCase.getIntersections()
-        }
+        val cam1Online = node.cameras.getOrNull(0)?.isOnline == true
+        val cam2Online = node.cameras.getOrNull(1)?.isOnline == true
+
+        return listOf(
+            mapOf("id" to "CAM-01", "int" to "INT-01", "name" to "Salaverry · acceso norte (ESP32-CAM 01)", "status" to if (cam1Online) "En línea" else "Sin señal"),
+            mapOf("id" to "CAM-02", "int" to "INT-02", "name" to "Goyeneche · cruce principal", "status" to "En línea"),
+            mapOf("id" to "CAM-03", "int" to "INT-02", "name" to "Parra · acceso este", "status" to "Degradada"),
+            mapOf("id" to "CAM-04", "int" to "INT-03", "name" to "Dolores · Mariscal Castilla", "status" to "En línea"),
+            mapOf("id" to "CAM-05", "int" to "INT-05", "name" to "Kennedy · Ejército (ESP32-CAM 02)", "status" to if (cam2Online) "En línea" else "Sin señal"),
+            mapOf("id" to "CAM-06", "int" to "INT-06", "name" to "Puente Bolognesi · sentido sur", "status" to "En línea"),
+            mapOf("id" to "CAM-07", "int" to "INT-07", "name" to "Aviación · Alcides Carrión", "status" to "En línea"),
+            mapOf("id" to "CAM-08", "int" to "INT-08", "name" to "La Marina · Metropolitana", "status" to "Sin señal")
+        )
     }
 
     @GetMapping("/incidents")

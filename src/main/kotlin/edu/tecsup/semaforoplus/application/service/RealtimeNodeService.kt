@@ -201,8 +201,8 @@ class RealtimeNodeService(
 
         return TrafficNode(
             code = "NODE-01",
-            name = "Av. Ejército × Calle Los Arces",
-            zone = "Yanahuara / Cayma (Arequipa)",
+            name = "Av. Ejército × Av. Salaverry",
+            zone = "Yanahuara",
             esp32CentralIp = "192.168.1.50",
             esp32CentralStatus = centralStatus,
             firmwareVersion = "v2.4.1-retrofit-tecsup",

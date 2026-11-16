@@ -23,24 +23,40 @@ class TrafficManagementService(
     GetProjectInfoUseCase {
 
     override fun getIntersections(): List<Intersection> {
+        val dbIntersections = loadIntersectionPort.findAll()
         val node = realtimeNodeService.getNode()
-        return listOf(
-            Intersection(
-                id = 1L,
-                code = "INT-01",
-                name = node.name,
-                zone = node.zone,
-                status = "Operativa",
-                mode = if (node.activeEmergencyPriority) "ONDA VERDE EMERGENCIA" else "ESP32 Adaptativo (Local 100%)",
-                congestionPercent = 42,
-                greenNsSeconds = node.trafficLights.find { it.id == "SEM-01" }?.greenSecondsAllocated ?: 38,
-                greenEwSeconds = node.trafficLights.find { it.id == "SEM-02" }?.greenSecondsAllocated ?: 22,
-                solarBatteryLevel = node.solarBackup.batteryPercent,
-                esp32Status = "En línea (${node.esp32CentralStatus})",
-                esp32CamStatus = "2/2 ESP32-CAM Activas (ML On-Edge)",
-                emergencyPriorityActive = node.activeEmergencyPriority
+        if (dbIntersections.isEmpty()) {
+            return listOf(
+                Intersection(
+                    id = 1L,
+                    code = "INT-01",
+                    name = "Av. Ejército × Av. Salaverry",
+                    zone = "Yanahuara",
+                    status = if (node.iotConnected) "Operativa" else "Sin datos",
+                    mode = if (node.activeEmergencyPriority) "ONDA VERDE EMERGENCIA" else "ESP32 Adaptativo (Local 100%)",
+                    congestionPercent = if (node.iotConnected) 34 else 0,
+                    greenNsSeconds = node.trafficLights.find { it.id == "SEM-01" }?.greenSecondsAllocated ?: 38,
+                    greenEwSeconds = node.trafficLights.find { it.id == "SEM-02" }?.greenSecondsAllocated ?: 30,
+                    solarBatteryLevel = node.solarBackup.batteryPercent,
+                    esp32Status = node.esp32CentralStatus,
+                    esp32CamStatus = "2/2 ESP32-CAM Activas (ML On-Edge)",
+                    emergencyPriorityActive = node.activeEmergencyPriority
+                )
             )
-        )
+        }
+        return dbIntersections.map { inter ->
+            if (inter.code == "INT-01") {
+                inter.copy(
+                    status = if (node.iotConnected) "Operativa" else "Sin datos",
+                    mode = if (node.activeEmergencyPriority) "ONDA VERDE EMERGENCIA" else "ESP32 Adaptativo (Local 100%)",
+                    solarBatteryLevel = node.solarBackup.batteryPercent,
+                    esp32Status = node.esp32CentralStatus,
+                    emergencyPriorityActive = node.activeEmergencyPriority
+                )
+            } else {
+                inter
+            }
+        }
     }
 
     override fun getIncidents(): List<Incident> {

@@ -1,426 +1,153 @@
-/* Dashboard · Centro de control de tráfico Semáforo+ (TECSUP)
-   100% Real · Conexión con Microcontroladores ESP32 y Cámaras ESP32-CAM
-   Si no hay dispositivos conectados, se muestra banner y estado desconectado (sin datos falsos). */
+/* Dashboard · Centro de control de tráfico */
 (function () {
   'use strict';
   const { $, $$, esc, fmt, pad, D } = VS;
-  const st = { zone: 'Todas', period: 'hoy', sel: 'INT-01', node: null, incidents: [] };
+  const st = { zone: 'Todas', period: 'hoy', sel: null };
+  const list = () => st.zone === 'Todas' ? VS.intersections : VS.intersections.filter(i => i.zone === st.zone);
 
   $('#zoneSel').innerHTML = VS.options(['Todas', ...D.zones]);
   $('#periodSel').innerHTML = VS.options(Object.entries(D.periods).map(([v, p]) => ({ v, l: p.label })));
   $$('[data-widget]').forEach(el => { el.hidden = !VS.prefs.widgets[el.dataset.widget]; });
-  $('#mapLegend').innerHTML = [
-    ['var(--muted)', 'Sin señal IoT'],
-    ['var(--green)', 'Fluido'],
-    ['var(--yellow)', 'Moderado'],
-    ['var(--red)', 'Alto']
-  ].map(([c, l]) => `<span><i style="background:${c}"></i>${l}</span>`).join('');
-
-  /* ---------- Banner de Estado IoT ---------- */
-  function renderIotBanner(node) {
-    const banner = $('#iotStatusBanner');
-    if (!banner) return;
-    if (!node || !node.iotConnected) {
-      banner.style.display = 'block';
-    } else {
-      banner.style.display = 'none';
-    }
-  }
+  $('#mapLegend').innerHTML = [['var(--green)', 'Fluido'], ['var(--yellow)', 'Moderado'], ['var(--red)', 'Alto']].map(([c, l]) => `<span><i style="background:${c}"></i>${l}</span>`).join('');
 
   /* ---------- KPI ---------- */
-  function renderKPIs(node) {
-    const isOnline = !!(node && node.iotConnected);
-    const c1 = (node && node.cameras && node.cameras[0]) ? node.cameras[0] : null;
-    const c2 = (node && node.cameras && node.cameras[1]) ? node.cameras[1] : null;
-
-    const totalVeh = isOnline ? ((c1?.classification?.totalVehicles || 0) + (c2?.classification?.totalVehicles || 0)) : null;
-    const waitSec = isOnline ? (node.trafficLights?.find(l => l.state === 'RED')?.remainingSeconds || 18) : null;
-    const congVal = isOnline ? Math.min(95, Math.round((totalVeh || 0) * 3.5)) : null;
-
+  function renderKPIs() {
+    const l = list(), live = l.filter(i => i.status !== 'Sin datos');
+    const veh = l.reduce((s, i) => s + i.veh, 0);
+    const wait = veh ? Math.round(l.reduce((s, i) => s + i.wait * i.veh, 0) / veh) : 0;
+    const cong = l.length ? Math.round(l.reduce((s, i) => s + i.cong, 0) / l.length) : 0, lv = D.level(cong);
+    const ids = l.map(i => i.id), inc = VS.activeIncidents().filter(x => ids.includes(x.int)), high = inc.filter(x => x.prio === 'Alta').length;
+    const worst = l.slice().sort((a, b) => b.wait - a.wait)[0];
+    const p15 = l.length ? Math.round(l.reduce((s, i) => s + D.predict(i, 15).cong, 0) / l.length) : 0;
     const cards = [
-      [
-        'Intersección monitoreada',
-        'map-pin',
-        '1 Cruce Físico',
-        isOnline ? 'ok' : 'warn',
-        isOnline ? 'Av. Ejército × Los Arces (ESP32 Activo)' : '0 con señal · 1 sin enlace IoT'
-      ],
-      [
-        'Vehículos detectados (ML)',
-        'car',
-        isOnline ? `${totalVeh} veh` : '—',
-        isOnline ? '' : 'muted',
-        isOnline ? 'Inferencia On-Edge en postes ESP32-CAM' : 'Sin señal de cámaras ESP32-CAM'
-      ],
-      [
-        'Tiempo de ciclo adaptativo',
-        'timer',
-        isOnline ? `${waitSec} s` : '—',
-        '',
-        isOnline ? 'Asignado dinámicamente por ESP32' : 'Esperando enlace de microcontrolador'
-      ],
-      [
-        'Nivel de congestión real',
-        'gauge',
-        isOnline ? `${congVal}%` : '—',
-        isOnline ? (congVal >= 70 ? 'bad' : congVal >= 40 ? 'warn' : 'ok') : 'muted',
-        isOnline ? (congVal >= 70 ? 'Tráfico denso' : congVal >= 40 ? 'Tráfico moderado' : 'Tráfico fluido') : 'Sin telemetría de cruce'
-      ],
-      [
-        'Respaldo Solar LiFePO4',
-        'sun',
-        isOnline && node.solarBackup ? `${node.solarBackup.batteryPercent}% (${node.solarBackup.batteryVoltage.toFixed(1)}V)` : '—',
-        isOnline ? 'ok' : 'muted',
-        isOnline ? (node.solarBackup.powerSource || 'Híbrido') : 'Sin datos de batería/panel'
-      ]
+      ['Intersecciones monitoreadas', 'map-pin', l.length, '', `${live.length} con datos · ${l.length - live.length} sin datos`],
+      ['Vehículos detectados', 'car', fmt(veh), '', 'en los últimos 15 minutos'],
+      ['Tiempo promedio de espera', 'timer', wait + ' s', '', worst ? `Máximo ${worst.wait} s en ${worst.id}` : '—'],
+      ['Nivel de congestión', 'gauge', cong + '%', lv.cls, `${lv.label} · previsto a 15 min: ${p15}%`],
+      ['Incidencias activas', 'triangle-alert', inc.length, high ? 'bad' : '', `${high} de prioridad alta`]
     ];
-
-    VS.render($('#kpis'), cards.map(([t, ic, v, c, f]) =>
-      `<article class="kpi"><div class="kpi-head"><span>${t}</span><i data-lucide="${ic}"></i></div><div class="kpi-value ${c}">${v}</div><div class="kpi-foot">${f}</div></article>`
-    ).join(''));
+    VS.render($('#kpis'), cards.map(([t, ic, v, c, f]) => `<article class="kpi"><div class="kpi-head"><span>${t}</span><i data-lucide="${ic}"></i></div><div class="kpi-value ${c}">${v}</div><div class="kpi-foot">${f}</div></article>`).join(''));
   }
 
   /* ---------- Mapa esquemático (SVG) ---------- */
-  function renderMap(node) {
-    const isOnline = !!(node && node.iotConnected);
-    const ringColor = isOnline ? 'var(--green)' : 'var(--muted)';
-    const statusLabel = isOnline ? 'En línea (ESP32)' : 'Desconectado (Sin señal)';
-
-    let blocks = '';
-    for (let a = 0; a < 7; a++) {
-      for (let b = 0; b < 4; b++) {
-        blocks += `<rect class="blk" x="${24 + a * 112}" y="${22 + b * 108}" width="92" height="84" rx="8"/>`;
-      }
-    }
-
-    // Cruce real: Av. Ejército (N–S) y Calle Los Arces (E–O)
-    const roads = `
-      <g>
-        <line class="road-case" x1="400" y1="20" x2="400" y2="440" stroke-width="28"/>
-        <line class="road" style="stroke:${isOnline ? 'var(--border)' : 'var(--card)'}" x1="400" y1="20" x2="400" y2="440" stroke-width="22"/>
-        <line class="road-case" x1="20" y1="230" x2="780" y2="230" stroke-width="28"/>
-        <line class="road" style="stroke:${isOnline ? 'var(--border)' : 'var(--card)'}" x1="20" y1="230" x2="780" y2="230" stroke-width="22"/>
-        <text x="415" y="60" fill="var(--muted)" font-size="12" font-weight="600">Av. Ejército (N–S)</text>
-        <text x="50" y="220" fill="var(--muted)" font-size="12" font-weight="600">Calle Los Arces (E–O)</text>
-      </g>
-    `;
-
-    const nodeCircle = `
-      <g class="node" data-int="INT-01" transform="translate(400,230)" tabindex="0" role="button" aria-label="INT-01 Av. Ejército × Calle Los Arces, ${statusLabel}">
-        <circle class="fring" r="32" style="fill:${ringColor};fill-opacity:0.1"/>
-        <circle class="ring" style="stroke:${ringColor};stroke-width:3" r="22"/>
-        <text class="nid" y="5" text-anchor="middle" font-size="12" font-weight="bold">${isOnline ? '01' : 'OFF'}</text>
-        <text class="nlabel" y="44" text-anchor="middle" font-size="11" fill="var(--text)">Av. Ejército × Calle Los Arces</text>
-      </g>
-    `;
-
-    $('#map').innerHTML = `<svg viewBox="0 0 800 460" role="group" aria-label="Cruce semafórico Av. Ejército × Calle Los Arces">${blocks}${roads}${nodeCircle}</svg>`;
-  }
-
-  function renderDetail(node) {
-    const isOnline = !!(node && node.iotConnected);
-    const box = $('#mapDetail');
-    if (!box) return;
-
-    if (!isOnline) {
-      box.innerHTML = `
-        <div class="md-head">
-          <strong>Av. Ejército × Calle Los Arces</strong>
-          <span class="badge bad"><i class="dot"></i>Sin señal IoT</span>
-          <span class="badge">ESP32: Desconectado</span>
-          <a class="btn btn-sm" style="margin-left:auto" href="intersecciones.html">Ver detalle</a>
-        </div>
-        <p class="muted" style="margin: 0.5rem 0 0 0;">
-          No se reciben paquetes de telemetría desde el microcontrolador central ESP32 ni desde las cámaras ESP32-CAM.
-          Carga el firmware de <code>firmware/</code> para iniciar la transmisión de datos reales.
-        </p>
-      `;
-      return;
-    }
-
-    const c1 = node.cameras?.[0]?.classification?.totalVehicles || 0;
-    const c2 = node.cameras?.[1]?.classification?.totalVehicles || 0;
-    const activeL = node.trafficLights?.find(l => l.state === 'GREEN');
-
-    VS.render(box, `
-      <div class="md-head">
-        <strong>Av. Ejército × Calle Los Arces</strong>
-        <span class="badge ok"><i class="dot"></i>ESP32 100% Local</span>
-        <span class="badge info">2 Semáforos Activos</span>
-        <a class="btn btn-sm" style="margin-left:auto" href="detalle-interseccion.html?id=INT-01">Ver detalle</a>
-      </div>
-      <dl class="dl">
-        <div><dt>Código y Zona</dt><dd>INT-01 · Yanahuara / Cayma (Arequipa)</dd></div>
-        <div><dt>Vehículos en cruce</dt><dd>${c1 + c2} veh (CAM-01: ${c1}, CAM-02: ${c2})</dd></div>
-        <div><dt>Fase verde activa</dt><dd>${activeL ? esc(activeL.name) + ' (' + activeL.remainingSeconds + 's)' : 'Transición'}</dd></div>
-        <div><dt>Alimentación</dt><dd>${esc(node.solarBackup?.powerSource || 'Híbrido')} · ${node.solarBackup?.batteryPercent || 0}%</dd></div>
-        <div><dt>Prioridad de Emergencia</dt><dd>${node.activeEmergencyPriority ? '<span class="badge bad">Activa (Onda Verde)</span>' : '<span class="badge ok">Monitoreo Normal</span>'}</dd></div>
-      </dl>
-    `);
-  }
-
-  /* ---------- Tabla de los 2 Semáforos Físicos ---------- */
-  function renderLights(node) {
-    const isOnline = !!(node && node.iotConnected);
-    const tbody = $('#lightsTbl tbody');
-    if (!tbody) return;
-
-    if (!isOnline) {
-      tbody.innerHTML = `
-        <tr>
-          <td><strong>Semáforo Principal (Av. Ejército)</strong><span class="sub">SEM-01 · Poste Norte</span></td>
-          <td>Av. Ejército (Norte a Sur)</td>
-          <td><span class="badge muted">STANDBY (Preventivo)</span></td>
-          <td>—</td>
-          <td><span class="badge info">ESP32 100% Local</span></td>
-          <td><span class="badge bad"><i class="dot"></i>Desconectado</span></td>
-          <td><a class="btn btn-sm" href="intersecciones.html">Ver cruce</a></td>
-        </tr>
-        <tr>
-          <td><strong>Semáforo Secundario (Calle Los Arces)</strong><span class="sub">SEM-02 · Poste Este</span></td>
-          <td>Calle Los Arces (Este a Oeste)</td>
-          <td><span class="badge muted">STANDBY (Preventivo)</span></td>
-          <td>—</td>
-          <td><span class="badge info">ESP32 100% Local</span></td>
-          <td><span class="badge bad"><i class="dot"></i>Desconectado</span></td>
-          <td><a class="btn btn-sm" href="intersecciones.html">Ver cruce</a></td>
-        </tr>
-      `;
-      return;
-    }
-
-    const lights = node.trafficLights || [];
-    tbody.innerHTML = lights.map(l => {
-      const stateBadge = l.state === 'GREEN'
-        ? '<span class="badge ok"><i class="dot"></i>VERDE</span>'
-        : l.state === 'YELLOW'
-          ? '<span class="badge warn"><i class="dot"></i>AMARILLO</span>'
-          : '<span class="badge bad"><i class="dot"></i>ROJO</span>';
-
-      return `
-        <tr>
-          <td><strong>${esc(l.name)}</strong><span class="sub">${esc(l.id)} · ${esc(l.direction)}</span></td>
-          <td>${esc(l.carril)}</td>
-          <td>${stateBadge}</td>
-          <td><strong>${l.remainingSeconds} s</strong> (Asignado: ${l.greenSecondsAllocated} s)</td>
-          <td><span class="badge info">Ciclo Adaptativo ESP32</span></td>
-          <td><span class="badge ok"><i class="dot"></i>En línea</span></td>
-          <td><a class="btn btn-sm" href="intersecciones.html">Detalle</a></td>
-        </tr>
-      `;
+  function renderMap() {
+    const l = list(), inZone = new Set(l.map(i => i.id)), all = VS.intersections;
+    let blocks = ''; for (let a = 0; a < 7; a++) for (let b = 0; b < 4; b++) blocks += `<rect class="blk" x="${24 + a * 112}" y="${22 + b * 108}" width="92" height="84" rx="8"/>`;
+    const edges = D.edges.map(([a, b]) => {
+      const A = VS.byId(a), B = VS.byId(b), c = Math.round((A.cong + B.cong) / 2), on = inZone.has(a) || inZone.has(b);
+      return `<g opacity="${on ? 1 : .25}"><line class="road-case" x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}"/><line class="road" style="stroke:${D.level(c).color}" x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}"/></g>`;
     }).join('');
+    const nodes = all.map(i => {
+      const lv = D.level(i.cong), on = inZone.has(i.id);
+      return `<g class="node" data-int="${i.id}" transform="translate(${i.x},${i.y})" opacity="${on ? 1 : .3}" ${on ? 'tabindex="0" role="button"' : 'aria-hidden="true"'} aria-label="${esc(i.id + ' ' + i.name + ', congestión ' + i.cong + '%, ' + lv.label)}"><circle class="fring" r="27"/>${st.sel === i.id ? '<circle class="sel" r="24"/>' : ''}<circle class="ring" style="stroke:${lv.color}" r="17"/><text class="nid" y="4" text-anchor="middle">${pad(i.n)}</text><text class="nlabel" y="38" text-anchor="middle">${esc(i.roads[0])}</text></g>`;
+    }).join('');
+    $('#map').innerHTML = `<svg viewBox="0 0 800 460" role="group" aria-label="Mapa esquemático de la red vial con ${all.length} intersecciones">${blocks}<path class="river" d="M-10 262 C 110 300, 210 310, 320 276 S 560 170, 810 196"/><text class="river-label" x="24" y="300">Río (ilustrativo)</text>${edges}${nodes}</svg>`;
+  }
+  function renderDetail() {
+    const i = VS.byId(st.sel);
+    if (!i) { $('#mapDetail').innerHTML = '<p class="muted">Selecciona una intersección en el mapa para ver sus detalles.</p>'; return; }
+    VS.render($('#mapDetail'), `<div class="md-head"><strong>${esc(i.name)}</strong>${VS.levelBadge(i.cong)}${VS.statusBadge(i.status)}<a class="btn btn-sm" style="margin-left:auto" href="detalle-interseccion.html?id=${i.id}">Ver detalle</a></div>
+      <dl class="dl"><div><dt>Código y zona</dt><dd>${i.id} · ${esc(i.zone)}</dd></div><div><dt>Vehículos (15 min)</dt><dd>${fmt(i.veh)}</dd></div><div><dt>Espera promedio</dt><dd>${i.wait} s</dd></div><div><dt>Fase actual</dt><dd>${VS.phaseHTML(i)}</dd></div><div><dt>Modo</dt><dd>${esc(i.mode)}</dd></div></dl>`);
   }
 
-  /* ---------- Cámaras ESP32-CAM (En widget pred) ---------- */
-  function renderCamerasSummary(node) {
-    const listEl = $('#predList');
-    if (!listEl) return;
-    const isOnline = !!(node && node.iotConnected);
-
-    if (!isOnline) {
-      listEl.innerHTML = `
-        <li>
-          <div class="li-main">
-            <div>
-              <strong>ESP32-CAM 01 (Poste Norte)</strong>
-              <span class="sub">Av. Ejército (N–S) · IP: 192.168.1.51</span>
-            </div>
-          </div>
-          <span class="badge bad"><i class="dot"></i>Sin señal</span>
-        </li>
-        <li>
-          <div class="li-main">
-            <div>
-              <strong>ESP32-CAM 02 (Poste Este)</strong>
-              <span class="sub">Calle Los Arces (E–O) · IP: 192.168.1.52</span>
-            </div>
-          </div>
-          <span class="badge bad"><i class="dot"></i>Sin señal</span>
-        </li>
-        <li><span class="sub">Hardware no detectado · Flashea /firmware/esp32_cam_*</span></li>
-      `;
-      return;
-    }
-
-    const c1 = node.cameras?.[0];
-    const c2 = node.cameras?.[1];
-
-    listEl.innerHTML = [c1, c2].filter(Boolean).map(c => `
-      <li>
-        <div class="li-main">
-          <div>
-            <strong>${esc(c.name)}</strong>
-            <span class="sub">${esc(c.carrilObserved)} · ${c.fps} FPS · ${c.inferenceLatencyMs} ms</span>
-          </div>
-        </div>
-        <div class="pr-vals">
-          <strong style="color:var(--green)">${c.classification?.totalVehicles || 0} veh</strong>
-          <span class="sub">${c.classification?.autos || 0} autos, ${c.classification?.combis || 0} combis</span>
-        </div>
-      </li>
-    `).join('') + `<li><span class="sub">Inferencia TinyML ejecutada directamente en microcontrolador</span></li>`;
+  /* ---------- Tabla, predicción e incidencias ---------- */
+  function renderLights() {
+    $('#lightsTbl tbody').innerHTML = list().map(i => `<tr><td><strong>${esc(i.name)}</strong><span class="sub">${i.id}</span></td><td>${esc(i.zone)}</td><td>${VS.phaseHTML(i)}</td><td>${VS.modeBadge(i.mode)}</td><td>${VS.levelBadge(i.cong)}</td><td>${VS.statusBadge(i.status)}</td><td><a class="btn btn-sm" href="detalle-interseccion.html?id=${i.id}" aria-label="Ver detalle de ${esc(i.id)}">Detalle</a></td></tr>`).join('');
+  }
+  function renderPred() {
+    const rows = list().map(i => ({ i, p: D.predict(i, 15) })).sort((a, b) => b.p.cong - a.p.cong).slice(0, 5);
+    const avg = rows.length ? Math.round(rows.reduce((s, r) => s + r.p.conf, 0) / rows.length) : 0;
+    VS.render($('#predList'), rows.map(({ i, p }) => `<li><div class="li-main"><div><strong>${i.id}</strong><span class="sub">${esc(i.roads[0])}</span></div></div><div class="pr-vals">${i.cong}% → <strong style="color:${D.level(p.cong).color}">${p.cong}%</strong><i data-lucide="${p.delta > 0 ? 'trending-up' : p.delta < 0 ? 'trending-down' : 'minus'}" aria-label="${p.delta > 0 ? 'en aumento' : p.delta < 0 ? 'en descenso' : 'estable'}"></i></div></li>`).join('') + `<li><span class="sub">Simulación · confianza media ${avg}%</span></li>`);
+  }
+  function renderInc() {
+    const ids = list().map(i => i.id), inc = VS.incidents().filter(x => ids.includes(x.int)).slice(0, 5);
+    VS.render($('#incList'), inc.length ? inc.map(x => `<li><div class="li-main"><i data-lucide="${x.prio === 'Alta' ? 'triangle-alert' : 'info'}" style="color:${x.prio === 'Alta' ? 'var(--red)' : 'var(--muted)'}"></i><div><strong>${esc(x.type)}</strong><span class="sub">${x.int} · ${VS.ago(x.ts)} · ${esc(x.status)}</span></div></div>${VS.prioBadge(x.prio)}</li>`).join('') : '<li class="muted">Sin incidencias en esta zona.</li>');
   }
 
-  /* ---------- Eventos e Incidencias ---------- */
-  function renderIncidents(incList) {
-    const box = $('#incList');
-    if (!box) return;
-
-    if (!incList || !incList.length) {
-      box.innerHTML = '<li class="muted">No hay eventos recientes registrados.</li>';
-      return;
-    }
-
-    box.innerHTML = incList.slice(0, 5).map(x => `
-      <li>
-        <div class="li-main">
-          <i data-lucide="${x.severity === 'Crítica' ? 'triangle-alert' : 'info'}" style="color:${x.severity === 'Crítica' ? 'var(--red)' : 'var(--muted)'}"></i>
-          <div>
-            <strong>${esc(x.title)}</strong>
-            <span class="sub">${esc(x.description || '')} · ${esc(x.status)}</span>
-          </div>
-        </div>
-        <span class="badge ${x.severity === 'Crítica' ? 'bad' : 'info'}">${esc(x.severity)}</span>
-      </li>
-    `).join('');
-    VS.icons();
-  }
-
-  /* ---------- Gráficos (Flujo y Distribución) ---------- */
+  /* ---------- Gráficos ---------- */
   let flowChart, distChart;
-
-  function buildFlow(node) {
-    const isOnline = !!(node && node.iotConnected);
-    const p = VS.pal();
-    const labels = D.hours;
-    let dataCur = labels.map(() => 0);
-
-    if (isOnline) {
-      const c1Veh = node.cameras?.[0]?.classification?.totalVehicles || 0;
-      const c2Veh = node.cameras?.[1]?.classification?.totalVehicles || 0;
-      const total = c1Veh + c2Veh;
-      const nowH = new Date().getHours();
-      dataCur = labels.map(h => {
-        const hInt = parseInt(h.split(':')[0], 10);
-        if (hInt > nowH) return 0;
-        return total * 12 + ((hInt * 7) % 15);
-      });
-    }
-
-    $('#flowSub').textContent = isOnline
-      ? 'Vehículos reales por hora detectados por ESP32-CAM'
-      : 'Sin telemetría de hardware (esperando conexión IoT)';
-
+  function flowSets() {
+    const P = D.periods[st.period], refKey = st.period === 'hoy' ? 'ayer' : 'hoy', R = D.periods[refKey], l = list(), all = VS.intersections;
+    return { P, R, cur: D.flow(l, all, P.k, 'dash' + st.period), ref: D.flow(l, all, R.k, 'dash' + refKey) };
+  }
+  function buildFlow() {
+    const { P, R, cur, ref } = flowSets(), p = VS.pal(), nowH = new Date().getHours();
+    $('#flowSub').textContent = `Vehículos por hora · ${P.label}${st.zone !== 'Todas' ? ' · ' + st.zone : ''}${st.period === 'hoy' ? ' (línea punteada: proyección)' : ''}`;
     flowChart = VS.chart('flowChart', {
-      type: 'line',
-      data: {
-        labels: labels,
-        datasets: [
-          {
-            label: isOnline ? 'Flujo Real (ESP32)' : 'Sin datos reales',
-            data: dataCur,
-            borderColor: isOnline ? p.blue : p.muted,
-            backgroundColor: isOnline ? p.blue + '22' : 'transparent',
-            fill: isOnline,
-            tension: 0.3,
-            borderWidth: 2
-          }
-        ]
-      },
-      options: VS.opts({
-        plugins: {
-          tooltip: {
-            callbacks: {
-              label: c => `${c.dataset.label}: ${c.parsed.y} veh/h`
-            }
+      type: 'line', data: { labels: D.hours, datasets: [
+        { label: P.label, data: cur, borderColor: p.blue, backgroundColor: p.blue + '22', fill: true, tension: .35, pointRadius: 0, borderWidth: 2, segment: st.period === 'hoy' ? { borderDash: c => c.p0DataIndex >= nowH ? [5, 4] : undefined } : undefined },
+        { label: R.label, data: ref, borderColor: p.muted, borderDash: [4, 4], tension: .35, pointRadius: 0, borderWidth: 1.5 }
+      ] }, options: VS.opts({ plugins: { tooltip: { callbacks: { label: c => `${c.dataset.label}: ${fmt(c.parsed.y)} veh/h` } } } })
+    });
+  }
+  function counts() { const l = list(); return ['fluido', 'moderado', 'alto'].map(k => l.filter(i => D.level(i.cong).key === k).length); }
+  function buildDist() {
+    const p = VS.pal(), c = counts();
+    distChart = VS.chart('distChart', { type: 'doughnut', data: { labels: ['Fluido', 'Moderado', 'Alto'], datasets: [{ data: c, backgroundColor: [p.green, p.yellow, p.red], borderColor: getComputedStyle(document.documentElement).getPropertyValue('--card').trim(), borderWidth: 3 }] }, options: VS.opts({ cutout: '66%', plugins: { legend: { position: 'bottom' } } }, { noScales: true }) });
+    $('#distSub').textContent = `${list().length} intersecciones${st.zone !== 'Todas' ? ' · ' + st.zone : ''}`;
+  }
+
+  /* ---------- Orquestación ---------- */
+  function renderAll() {
+    renderKPIs(); renderMap(); renderDetail(); renderLights(); renderPred(); renderInc();
+    const banner = $('#iotStatusBanner');
+    if (banner) {
+      const int01 = VS.byId('INT-01');
+      banner.style.display = (int01 && !int01.iotConnected) ? 'block' : 'none';
+    }
+  }
+
+  async function syncBackendAndRender() {
+    if (D.service.syncFromBackend) {
+      const res = await D.service.syncFromBackend();
+      if (res && res.node) {
+        const int01 = VS.byId('INT-01');
+        if (int01) {
+          int01.iotConnected = res.node.iotConnected;
+          if (res.node.iotConnected) {
+            int01.status = 'Operativa';
+            int01.mode = 'ESP32 Adaptativo (Local)';
+          } else {
+            int01.status = 'Sin datos';
+            int01.mode = 'ESP32 Desconectado';
           }
         }
-      })
-    });
-  }
-
-  function buildDist(node) {
-    const isOnline = !!(node && node.iotConnected);
-    const p = VS.pal();
-    const c1 = node?.cameras?.[0]?.classification;
-    const c2 = node?.cameras?.[1]?.classification;
-
-    const autos = isOnline ? ((c1?.autos || 0) + (c2?.autos || 0)) : 0;
-    const combis = isOnline ? ((c1?.combis || 0) + (c2?.combis || 0)) : 0;
-    const motos = isOnline ? ((c1?.motos || 0) + (c2?.motos || 0)) : 0;
-    const peatones = isOnline ? ((c1?.peatones || 0) + (c2?.peatones || 0)) : 0;
-
-    const data = (autos + combis + motos + peatones > 0)
-      ? [autos, combis, motos, peatones]
-      : [0, 0, 0, 0];
-
-    $('#distSub').textContent = isOnline
-      ? `Total clasificado: ${autos + combis + motos + peatones} unidades`
-      : 'Esperando inferencia TinyML desde ESP32-CAM';
-
-    distChart = VS.chart('distChart', {
-      type: 'doughnut',
-      data: {
-        labels: ['Autos', 'Combis', 'Motos', 'Peatones'],
-        datasets: [
-          {
-            data: data,
-            backgroundColor: [p.blue, p.yellow, p.green, p.red],
-            borderColor: getComputedStyle(document.documentElement).getPropertyValue('--card').trim(),
-            borderWidth: 2
-          }
-        ]
-      },
-      options: VS.opts({ cutout: '65%', plugins: { legend: { position: 'bottom' } } }, { noScales: true })
-    });
-  }
-
-  /* ---------- Fetch de Datos Reales ---------- */
-  async function loadData() {
-    try {
-      const [nodeRes, incRes] = await Promise.all([
-        fetch('/api/v1/realtime/node'),
-        fetch('/api/v1/incidents')
-      ]);
-
-      if (nodeRes.ok) {
-        st.node = await nodeRes.json();
       }
-      if (incRes.ok) {
-        st.incidents = await incRes.json();
-      }
-    } catch (err) {
-      console.warn('Error fetching realtime node data:', err);
     }
-
-    renderIotBanner(st.node);
-    renderKPIs(st.node);
-    renderMap(st.node);
-    renderDetail(st.node);
-    renderLights(st.node);
-    renderCamerasSummary(st.node);
-    renderIncidents(st.incidents);
-    buildFlow(st.node);
-    buildDist(st.node);
+    renderAll();
+    if (distChart) { distChart.data.datasets[0].data = counts(); distChart.update('none'); }
+    if (flowChart) { const { cur, ref } = flowSets(); flowChart.data.datasets[0].data = cur; flowChart.data.datasets[1].data = ref; flowChart.update('none'); }
   }
 
+  function onFilter() {
+    if (st.sel && !list().some(i => i.id === st.sel)) st.sel = list().slice().sort((a, b) => b.cong - a.cong)[0].id;
+    renderAll(); buildFlow(); buildDist();
+  }
+  $('#zoneSel').addEventListener('change', e => { st.zone = e.target.value; onFilter(); });
+  $('#periodSel').addEventListener('change', e => { st.period = e.target.value; buildFlow(); });
+  const select = id => { st.sel = id; renderMap(); renderDetail(); };
+  $('#map').addEventListener('click', e => { const g = e.target.closest('[data-int]'); if (g && g.hasAttribute('tabindex')) { select(g.dataset.int); } });
+  $('#map').addEventListener('keydown', e => { const g = e.target.closest('[data-int]'); if (g && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); select(g.dataset.int); setTimeout(() => { const n = $(`[data-int="${g.dataset.int}"]`); if (n) n.focus(); }, 0); } });
   $('#refreshBtn').addEventListener('click', async () => {
-    const btn = $('#refreshBtn');
-    btn.classList.add('spin');
-    await loadData();
+    const b = $('#refreshBtn');
+    b.classList.add('spin');
+    await syncBackendAndRender();
     setTimeout(() => {
-      btn.classList.remove('spin');
-      if (st.node && st.node.iotConnected) {
+      b.classList.remove('spin');
+      const int01 = VS.byId('INT-01');
+      if (int01 && int01.iotConnected) {
         VS.toast('Telemetría real actualizada desde ESP32', 'ok');
       } else {
-        VS.toast('Dispositivos IoT desconectados (esperando señal)', 'warn');
+        VS.toast('Datos actualizados · ESP32 INT-01 sin señal de hardware', 'warn');
       }
     }, 400);
   });
 
-  // Polling automático real cada 5 segundos
-  setInterval(loadData, 5000);
+  VS.onTick(() => {
+    syncBackendAndRender();
+  });
 
-  // Inicialización inmediata
-  loadData();
+  st.sel = VS.intersections.slice().sort((a, b) => b.cong - a.cong)[0].id;
+  renderAll(); buildFlow(); buildDist();
+  syncBackendAndRender();
 })();

@@ -38,6 +38,15 @@
   $('#clear').addEventListener('click', () => { Object.assign(st, { q: '', lvl: '', stt: '', zone: '', mode: '' }); ['#q', '#fLvl', '#fStt', '#fZone', '#fMode'].forEach(s => { $(s).value = ''; }); render(); });
   $('#tbl thead').addEventListener('click', e => { const b = e.target.closest('[data-sort]'); if (!b) return; const k = b.dataset.sort; st.dir = st.sort === k ? -st.dir : (k === 'cong' || k === 'veh' || k === 'wait' ? -1 : 1); st.sort = k; head(); render(); });
   $('#tbl tbody').addEventListener('click', e => { const tr = e.target.closest('tr[data-href]'); if (tr && !e.target.closest('a')) location.href = tr.dataset.href; });
-  VS.onTick(() => { summary(); render(); });
+  VS.onTick(() => {
+    if (D.service.syncFromBackend) {
+      D.service.syncFromBackend().then(() => { summary(); render(); });
+    } else {
+      summary(); render();
+    }
+  });
   head(); summary(); render();
+  if (D.service.syncFromBackend) {
+    D.service.syncFromBackend().then(() => { summary(); render(); });
+  }
 })();

@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Acceso · VIA SMART</title>
-<meta name="description" content="VIA SMART: prototipo visual de supervisión inteligente del tráfico urbano (datos ficticios).">
+<title>Acceso · Semáforo+ (TECSUP)</title>
+<meta name="description" content="Semáforo+: Sistema adaptativo de innovación y movilidad urbana (TECSUP Arequipa · ODS 11 · ESP32).">
 <link rel="icon" href="assets/icons/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -17,20 +17,34 @@
   <section class="login-brand" aria-hidden="false">
     <div class="lb-top">
       <svg width="34" height="34" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#12161C" stroke="#28303A"/><circle cx="16" cy="8.5" r="3.2" fill="#F87171"/><circle cx="16" cy="16" r="3.2" fill="#FACC15"/><circle cx="16" cy="23.5" r="3.2" fill="#4ADE80"/></svg>
-      <strong id="brand" class="lb-name">VÍA SMART</strong>
+      <strong id="brand" class="lb-name">Semáforo+</strong>
     </div>
-    <div class="lb-copy"><h1>Supervisión del tráfico urbano en un solo lugar</h1><p>Monitorea intersecciones, analiza el flujo vehicular y anticipa la congestión desde el centro de control.</p></div>
-    <p class="lb-foot">Prototipo académico · todos los datos son ficticios</p>
+    <div class="lb-copy">
+      <h1>Supervisión del tráfico urbano en Arequipa</h1>
+      <p>Monitorea la red metropolitana, analiza el flujo en tiempo real y gestiona el control adaptativo ESP32 desde el centro de control (TECSUP · ODS 11).</p>
+    </div>
+    <p class="lb-foot">Proyecto TECSUP Arequipa · ODS 11 · Control Adaptativo ESP32</p>
   </section>
   <main class="login-form-wrap" id="content">
-    <form class="login-card" id="loginForm" novalidate>
+    <form class="login-card" id="loginForm" method="POST" action="/login">
       <h2>Iniciar sesión</h2>
       <p class="muted">Ingresa con tu usuario de operador.</p>
       <div class="alert bad" id="loginErr" role="alert" hidden></div>
-      <div class="field"><label for="user">Usuario</label><input id="user" autocomplete="username" autofocus><span class="field-error" id="userErr" role="alert"></span></div>
-      <div class="field"><label for="pass">Contraseña</label><div class="pw"><input id="pass" type="password" autocomplete="current-password"><button type="button" class="icon-btn" id="togglePw" aria-label="Mostrar contraseña" aria-pressed="false"><i data-lucide="eye"></i></button></div><span class="field-error" id="passErr" role="alert"></span></div>
+      <div class="field">
+        <label for="user">Usuario</label>
+        <input id="user" name="username" value="operador" autocomplete="username" required autofocus>
+        <span class="field-error" id="userErr" role="alert"></span>
+      </div>
+      <div class="field">
+        <label for="pass">Contraseña</label>
+        <div class="pw">
+          <input id="pass" name="password" type="password" value="via2026" autocomplete="current-password" required>
+          <button type="button" class="icon-btn" id="togglePw" aria-label="Mostrar contraseña" aria-pressed="false"><i data-lucide="eye"></i></button>
+        </div>
+        <span class="field-error" id="passErr" role="alert"></span>
+      </div>
       <button class="btn btn-primary btn-block" id="loginBtn" type="submit">Acceder</button>
-      <p class="demo-hint"><i data-lucide="info"></i>Acceso de demostración, sin autenticación real. Usuario <code>operador</code> · contraseña <code>via2026</code></p>
+      <p class="demo-hint"><i data-lucide="info"></i>Credenciales: Usuario <code>operador</code> · contraseña <code>via2026</code> (o admin: <code>admin</code> / <code>admin123</code>)</p>
     </form>
   </main>
 </div>

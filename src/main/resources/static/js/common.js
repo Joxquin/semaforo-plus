@@ -22,10 +22,10 @@
   const isLogin = page === 'login';
   const ss = { get(k, d) { try { const v = sessionStorage.getItem(k); return v == null ? d : v; } catch (e) { return d; } }, set(k, v) { try { sessionStorage.setItem(k, v); } catch (e) { /* sin almacenamiento */ } }, del(k) { try { sessionStorage.removeItem(k); } catch (e) { /* noop */ } } };
 
-  /* ---------- Acceso ficticio ---------- */
-  VS.requireLogin = true;     // ponlo en false para abrir las páginas sin pasar por login.html
-  if (!isLogin && VS.requireLogin && !ss.get('vs_auth')) { location.replace('login.html'); return; }
-  VS.logout = () => { ss.del('vs_auth'); ss.del('vs_inc'); ss.del('vs_t0'); location.href = 'login.html'; };
+  /* ---------- Control de Acceso (Protegido por Spring Security) ---------- */
+  VS.requireLogin = false;
+  if (!ss.get('vs_auth')) ss.set('vs_auth', '1');
+  VS.logout = () => { ss.del('vs_auth'); ss.del('vs_inc'); ss.del('vs_t0'); location.href = '/logout'; };
   if (!ss.get('vs_t0')) ss.set('vs_t0', String(Date.now()));
   VS.t0 = Number(ss.get('vs_t0'));
 

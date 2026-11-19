@@ -89,7 +89,7 @@ void sendFrameUDP(camera_fb_t * fb) {
   }
 }
 
-// Tarea FreeRTOS de captura continua a ritmo constante y suave (~18-20 FPS)
+// Tarea FreeRTOS de transmisión inmediata: entrega CADA fotograma que produce el hardware
 void udpStreamTask(void * pvParameters) {
   while (true) {
     if (WiFi.status() == WL_CONNECTED) {
@@ -99,8 +99,9 @@ void udpStreamTask(void * pvParameters) {
         esp_camera_fb_return(fb);
       }
     }
-    // 35ms produce unos fluidos ~18-20 FPS sin desestabilizar la energía ni las líneas del sensor
-    vTaskDelay(pdMS_TO_TICKS(35));
+    // Cero retraso artificial: cede inmediatamente el control al planificador (0 ticks)
+    // para capturar el siguiente fotograma tan pronto como el DMA lo tenga listo
+    vTaskDelay(0);
   }
 }
 

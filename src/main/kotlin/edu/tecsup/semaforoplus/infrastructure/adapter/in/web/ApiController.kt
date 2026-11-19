@@ -276,9 +276,10 @@ class ApiController(
                     output.write(bytes)
                     output.print("\r\n")
                     output.flush()
+                } else {
+                    // Si no ha llegado nuevo frame aún, esperar brevemente 2ms para no saturar CPU
+                    Thread.sleep(2)
                 }
-
-                Thread.sleep(40) // ~25 FPS máximo
             }
         } catch (_: java.io.IOException) {
             // El cliente cerró la pestaña o vista

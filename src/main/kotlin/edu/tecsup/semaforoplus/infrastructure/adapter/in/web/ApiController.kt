@@ -234,6 +234,65 @@ class ApiController(
         )
     }
 
+    // =========================================================================
+    // ENDPOINTS DE AUTO-ACTUALIZACIÓN INALÁMBRICA (HTTP OTA FIRMWARE)
+    // =========================================================================
+
+    // Mapa en memoria con la versión disponible en el servidor
+    private val availableFirmwareVersions = java.util.concurrent.ConcurrentHashMap<String, String>().apply {
+        put("ESP32-CENTRAL", "2.4.1")
+        put("ESP32-CAM-NORTE", "2.4.1")
+        put("ESP32-CAM-ESTE", "2.4.1")
+    }
+
+    @GetMapping("/iot/firmware/check-update")
+    fun checkFirmwareUpdate(
+        @RequestParam(defaultValue = "ESP32-CENTRAL") device: String,
+        @RequestParam(defaultValue = "1.0.0") currentVersion: String
+    ): Map<String, Any> {
+        val latestVersion = availableFirmwareVersions[device] ?: "2.4.1"
+        val hasUpdate = latestVersion != currentVersion
+        return mapOf(
+            "device" to device,
+            "currentVersion" to currentVersion,
+            "latestVersion" to latestVersion,
+            "updateAvailable" to hasUpdate,
+            "downloadUrl" to "/api/v1/iot/firmware/download/$device"
+        )
+    }
+
+    @PostMapping("/iot/firmware/publish-version")
+    fun publishNewVersion(
+        @RequestParam device: String,
+        @RequestParam version: String
+    ): Map<String, Any> {
+        availableFirmwareVersions[device] = version
+        return mapOf(
+            "status" to "VERSION_PUBLISHED",
+            "device" to device,
+            "newLatestVersion" to version
+        )
+    }
+
+    @GetMapping("/iot/firmware/download/{device}")
+    fun downloadFirmware(@PathVariable device: String): ResponseEntity<org.springframework.core.io.Resource> {
+        val binFileName = when (device) {
+            "ESP32-CENTRAL" -> "esp32_central_controller.ino.bin"
+            "ESP32-CAM-NORTE" -> "esp32_cam_norte.ino.bin"
+            "ESP32-CAM-ESTE" -> "esp32_cam_este.ino.bin"
+            else -> "firmware.bin"
+        }
+        val file = java.io.File("firmware/builds/$binFileName")
+        if (!file.exists()) {
+            return ResponseEntity.notFound().build()
+        }
+        val resource = org.springframework.core.io.FileSystemResource(file)
+        return ResponseEntity.ok()
+            .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"$binFileName\"")
+            .contentType(org.springframework.http.MediaType.APPLICATION_OCTET_STREAM)
+            .body(resource)
+    }
+
     @GetMapping("/auth/me")
     fun getCurrentUser(authentication: Authentication?): Map<String, Any?> {
         return if (authentication != null && authentication.isAuthenticated) {

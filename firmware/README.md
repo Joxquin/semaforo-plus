@@ -46,7 +46,34 @@ Controla directamente los **2 semáforos** del cruce físico y procesa el algori
 
 ---
 
-## 3. Instrucciones de Compilación y Flasheo
+## 3. Instrucciones de Compilación y Flasheo Automático (Arch Linux)
+
+Para automatizar el proceso al máximo sin abrir interfaces gráficas pesadas:
+
+### Preparación única en tu Arch Linux:
+```bash
+sudo pacman -S arduino-cli esptool python-pyserial
+sudo usermod -aG uucp $USER
+
+# Configurar core de ESP32 en arduino-cli
+arduino-cli config init
+arduino-cli config add board_manager.additional_urls https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+arduino-cli core update-index
+arduino-cli core install esp32:esp32
+```
+
+### Ejecutar el Flasheador Automático:
+Conecta tu ESP32 o ESP32-CAM por cable USB y ejecuta:
+```bash
+./firmware/scripts/flash.sh
+```
+El script:
+1. Detecta automáticamente el puerto (`/dev/ttyUSB0`, `/dev/ttyACM0`, etc.).
+2. Te permite elegir qué componente flashear (`Central`, `CAM Norte`, `CAM Este`).
+3. Compila con los flags optimizados de la placa.
+4. Flashea el binario vía `arduino-cli`.
+5. Abre el monitor serial en vivo para ver la telemetría en tiempo real.
+
 
 1. **Requisitos en Arduino IDE**:
    - Instalar el paquete de placas ESP32 por Espressif (`https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json`).

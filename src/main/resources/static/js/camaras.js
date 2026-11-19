@@ -3,12 +3,16 @@
   'use strict';
   const { $, $$, esc, D } = VS;
   const st = { q: '', stt: '', zone: '' };
-  const cams = D.service.getCameras().map(c => Object.assign(c, { i: VS.byId(c.int) }));
+  let cams = D.service.getCameras().map(c => Object.assign(c, { i: VS.byId(c.int) }));
   const inView = c => c.status === 'Sin señal' ? 0 : (c.veh !== undefined ? c.veh : 0);
   const activity = c => c.status === 'Sin señal' ? 0 : Math.min(100, Math.round((c.veh || 0) * 10));
   const actLabel = a => a >= 70 ? 'alta' : a >= 40 ? 'media' : 'baja';
   $('#fStt').innerHTML = VS.options([{ v: '', l: 'Todos' }, 'En línea', 'Degradada', 'Sin señal']);
   $('#fZone').innerHTML = VS.options([{ v: '', l: 'Todas' }, ...D.zones]);
+
+  function refreshDataFromService() {
+    cams = D.service.getCameras().map(c => Object.assign(c, { i: VS.byId(c.int) }));
+  }
 
   /* Ilustración de una calle (SVG). Los vehículos se animan con CSS; más congestión = más lentos. */
   function scene(c) {
@@ -63,11 +67,19 @@
       if (m) { const a = activity(c); m.style.width = a + '%'; m.style.background = D.level(a).color; }
     });
     if (D.service.syncFromBackend) {
-      D.service.syncFromBackend().then(() => { summary(); render(); });
+      D.service.syncFromBackend().then(() => {
+        refreshDataFromService();
+        summary();
+        render();
+      });
     }
   });
   summary(); render();
   if (D.service.syncFromBackend) {
-    D.service.syncFromBackend().then(() => { summary(); render(); });
+    D.service.syncFromBackend().then(() => {
+      refreshDataFromService();
+      summary();
+      render();
+    });
   }
 })();

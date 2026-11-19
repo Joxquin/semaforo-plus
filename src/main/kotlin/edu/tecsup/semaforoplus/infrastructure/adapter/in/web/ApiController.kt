@@ -15,7 +15,8 @@ data class CamDetectionPayload(
     val peatones: Int = 0,
     val unidadesEmergencia: Int = 0,
     val latencyMs: Int = 140,
-    val fps: Int = 20
+    val fps: Int = 20,
+    val firmwareVersion: String = "2.4.1"
 )
 
 data class Esp32CentralPayload(
@@ -29,7 +30,8 @@ data class Esp32CentralPayload(
     val batteryVoltage: Double = 13.6,
     val batteryPercent: Int = 96,
     val powerSource: String = "HÍBRIDO (Solar LiFePO4)",
-    val emergencyActive: Boolean = false
+    val emergencyActive: Boolean = false,
+    val firmwareVersion: String = "2.4.1"
 )
 
 @RestController
@@ -157,14 +159,27 @@ class ApiController(
             latencyMs = payload.latencyMs,
             fps = payload.fps
         )
-        return ResponseEntity.ok(
-            mapOf(
-                "status" to "ACK",
-                "receivedAt" to System.currentTimeMillis(),
-                "camId" to cam.id,
-                "online" to cam.isOnline
-            )
+        val response = mutableMapOf<String, Any>(
+            "status" to "ACK",
+            "receivedAt" to System.currentTimeMillis(),
+            "camId" to cam.id,
+            "online" to cam.isOnline
         )
+
+        // Verificar si hay actualización OTA pendiente para esta cámara
+        val latestVer = availableFirmwareVersions[payload.camId] 
+            ?: (if (payload.camId == "CAM-01") availableFirmwareVersions["ESP32-CAM-NORTE"] else availableFirmwareVersions["ESP32-CAM-ESTE"]) 
+            ?: "2.4.1"
+        if (latestVer != payload.firmwareVersion) {
+            val deviceType = if (payload.camId == "CAM-01") "ESP32-CAM-NORTE" else "ESP32-CAM-ESTE"
+            response["otaCommand"] = mapOf(
+                "updateAvailable" to true,
+                "latestVersion" to latestVer,
+                "downloadUrl" to "/api/v1/iot/firmware/download/$deviceType"
+            )
+        }
+
+        return ResponseEntity.ok(response)
     }
 
     @PostMapping("/iot/esp32/telemetry")
@@ -180,14 +195,25 @@ class ApiController(
             powerSource = payload.powerSource,
             emergencyActive = payload.emergencyActive
         )
-        return ResponseEntity.ok(
-            mapOf(
-                "status" to "ACK",
-                "receivedAt" to System.currentTimeMillis(),
-                "nodeCode" to node.code,
-                "centralStatus" to node.esp32CentralStatus
-            )
+
+        val response = mutableMapOf<String, Any>(
+            "status" to "ACK",
+            "receivedAt" to System.currentTimeMillis(),
+            "nodeCode" to node.code,
+            "centralStatus" to node.esp32CentralStatus
         )
+
+        // Verificar si hay actualización OTA pendiente para el ESP32 Central
+        val latestVer = availableFirmwareVersions["ESP32-CENTRAL"] ?: "2.4.1"
+        if (latestVer != payload.firmwareVersion) {
+            response["otaCommand"] = mapOf(
+                "updateAvailable" to true,
+                "latestVersion" to latestVer,
+                "downloadUrl" to "/api/v1/iot/firmware/download/ESP32-CENTRAL"
+            )
+        }
+
+        return ResponseEntity.ok(response)
     }
 
     @PostMapping("/iot/simulate-telemetry")

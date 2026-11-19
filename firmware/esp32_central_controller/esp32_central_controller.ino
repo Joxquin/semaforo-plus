@@ -26,12 +26,7 @@ const char* WIFI_PASSWORD    = "TuPasswordSeguro";     // Cambiar por tu clave W
 // URL Base del servidor VPS (Conexión directa por puerto estándar HTTP 80)
 const String SERVER_HOST     = "http://34.122.14.13"; 
 const String SERVER_URL      = SERVER_HOST + "/api/v1/iot/esp32/telemetry";
-const String OTA_CHECK_URL   = SERVER_HOST + "/api/v1/iot/firmware/check-update?device=" + DEVICE_TYPE + "&currentVersion=" + FIRMWARE_VERSION;
 const String OTA_BIN_URL     = SERVER_HOST + "/api/v1/iot/firmware/download/" + DEVICE_TYPE;
-
-// Temporizadores OTA (chequea actualizaciones cada 60 segundos)
-unsigned long lastOtaCheck = 0;
-const unsigned long OTA_CHECK_INTERVAL = 60000;
 
 // ---------- PINES DE LOS SEMÁFOROS FÍSICOS ----------
 // Semáforo 01: Av. Ejército (Carril Principal Norte-Sur)
@@ -124,54 +119,34 @@ void loop() {
     lastTelemetrySent = now;
     sendTelemetryToServer();
   }
-
-  // Verificación periódica de nuevo Firmware OTA por WiFi cada 60s
-  if (now - lastOtaCheck >= OTA_CHECK_INTERVAL) {
-    lastOtaCheck = now;
-    checkAndPerformOTA();
-  }
 }
 
 // ==============================================================================
 // RUTINA DE AUTO-ACTUALIZACIÓN INALÁMBRICA (HTTP OTA)
 // ==============================================================================
-void checkAndPerformOTA() {
-  if (WiFi.status() != WL_CONNECTED) return;
+void executeOTAUpdate() {
+  Serial.println("\n[OTA] ¡Orden de actualización recibida desde la VPS!");
+  Serial.println("[OTA] Descargando binario y actualizando vía WiFi...");
 
-  HTTPClient http;
-  http.begin(OTA_CHECK_URL);
-  int httpCode = http.GET();
+  // Modo seguro (todo rojo) durante la actualización
+  setLightState(1, COLOR_RED);
+  setLightState(2, COLOR_RED);
 
-  if (httpCode == HTTP_CODE_OK) {
-    String payload = http.getString();
-    // Si la respuesta indica "UPDATE_AVAILABLE", iniciamos la descarga e instalación
-    if (payload.indexOf("\"updateAvailable\":true") >= 0) {
-      Serial.println("\n[OTA] ¡Nueva versión de firmware detectada en la VPS!");
-      Serial.println("[OTA] Descargando binario y actualizando vía WiFi...");
+  WiFiClient client;
+  httpUpdate.setLedPin(PIN_SEM1_YELLOW, LOW);
+  t_httpUpdate_return ret = httpUpdate.update(client, OTA_BIN_URL);
 
-      // Ponemos semáforos en modo seguro (todo rojo) durante el flasheo (toma ~5 seg)
-      setLightState(1, COLOR_RED);
-      setLightState(2, COLOR_RED);
-
-      WiFiClient client;
-      httpUpdate.setLedPin(PIN_SEM1_YELLOW, LOW); // Parpadea amarillo mientras actualiza
-      t_httpUpdate_return ret = httpUpdate.update(client, OTA_BIN_URL);
-
-      switch (ret) {
-        case HTTP_UPDATE_FAILED:
-          Serial.printf("[OTA] Error en la actualización: (%d): %s\n", 
-                        httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
-          break;
-        case HTTP_UPDATE_NO_UPDATES:
-          Serial.println("[OTA] Sin actualizaciones pendientes.");
-          break;
-        case HTTP_UPDATE_OK:
-          Serial.println("[OTA] ¡Actualización exitosa! Reiniciando ESP32...");
-          break;
-      }
-    }
+  switch (ret) {
+    case HTTP_UPDATE_FAILED:
+      Serial.printf("[OTA] Error: (%d): %s\n", httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
+      break;
+    case HTTP_UPDATE_NO_UPDATES:
+      Serial.println("[OTA] Sin actualizaciones pendientes.");
+      break;
+    case HTTP_UPDATE_OK:
+      Serial.println("[OTA] ¡Actualización exitosa! Reiniciando ESP32...");
+      break;
   }
-  http.end();
 }
 
 // Control físico de salidas LED / Relés
@@ -267,12 +242,17 @@ void sendTelemetryToServer() {
   payload += "\"batteryVoltage\":" + String(v, 2) + ",";
   payload += "\"batteryPercent\":" + String(pct) + ",";
   payload += "\"powerSource\":\"HÍBRIDO (Solar LiFePO4)\",";
-  payload += "\"emergencyActive\":" + String(emergencyActive ? "true" : "false");
+  payload += "\"emergencyActive\":" + String(emergencyActive ? "true" : "false") + ",";
+  payload += "\"firmwareVersion\":\"" + String(FIRMWARE_VERSION) + "\"";
   payload += "}";
 
   int httpCode = http.POST(payload);
   if (httpCode > 0) {
-    // Telemetría entregada exitosamente
+    // Si el servidor responde con orden OTA ("updateAvailable":true), nos actualizamos de inmediato
+    String response = http.getString();
+    if (response.indexOf("\"updateAvailable\":true") >= 0) {
+      executeOTAUpdate();
+    }
   } else {
     Serial.printf("[HTTP] Error enviando telemetría: %s\n", http.errorToString(httpCode).c_str());
   }

@@ -94,17 +94,15 @@ void setup() {
   if (psramFound()) {
     Serial.printf("[CAM-02] PSRAM detectada: %d bytes libres.\n", ESP.getFreePsram());
     config.frame_size = FRAMESIZE_VGA;
-    config.jpeg_quality = 12;
-    config.fb_count = 1;
+    config.jpeg_quality = 10;
+    config.fb_count = 2;
     config.fb_location = CAMERA_FB_IN_PSRAM;
-    config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
   } else {
     Serial.println("[CAM-02] ADVERTENCIA: PSRAM NO detectada.");
     config.frame_size = FRAMESIZE_QVGA;
     config.jpeg_quality = 15;
     config.fb_count = 1;
     config.fb_location = CAMERA_FB_IN_DRAM;
-    config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
   }
 
   esp_err_t err = esp_camera_init(&config);
@@ -113,6 +111,14 @@ void setup() {
     return;
   }
   Serial.println("[CAM-02] Cámara OV2640 lista.");
+
+  sensor_t * s = esp_camera_sensor_get();
+  if (s != NULL) {
+    s->set_framesize(s, FRAMESIZE_VGA);
+    s->set_quality(s, 10);
+    s->set_vflip(s, 1);
+    s->set_hmirror(s, 0);
+  }
 }
 
 void loop() {

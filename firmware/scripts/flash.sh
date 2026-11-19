@@ -73,13 +73,14 @@ case "$OPTION" in
         ;;
     2)
         SKETCH_PATH="$FIRMWARE_DIR/esp32_cam_norte/esp32_cam_norte.ino"
-        FQBN="esp32:esp32:esp32cam"
-        TARGET_NAME="ESP32-CAM Norte"
+        # ESP32 WROVER Module con PSRAM habilitada y velocidad QIO
+        FQBN="esp32:esp32:esp32wrover:PartitionScheme=huge_app,FlashMode=qio,PSRAM=enabled"
+        TARGET_NAME="ESP32-CAM Norte (Wrover con PSRAM)"
         ;;
     3)
         SKETCH_PATH="$FIRMWARE_DIR/esp32_cam_este/esp32_cam_este.ino"
-        FQBN="esp32:esp32:esp32cam"
-        TARGET_NAME="ESP32-CAM Este"
+        FQBN="esp32:esp32:esp32wrover:PartitionScheme=huge_app,FlashMode=qio,PSRAM=enabled"
+        TARGET_NAME="ESP32-CAM Este (Wrover con PSRAM)"
         ;;
     4)
         echo -e "\n${GREEN}[INFO] Abriendo monitor serial a 115200 baudios (Ctrl+C para salir)...${NC}"

@@ -58,8 +58,8 @@
 #define FACE_COLOR_PURPLE (FACE_COLOR_BLUE | FACE_COLOR_RED)
 #endif
 
-// Enable LED FLASH setting
-#define CONFIG_LED_ILLUMINATOR_ENABLED 1
+// Enable LED FLASH setting (deshabilitado para compatibilidad con ESP32 Core 3.x / 4.x)
+#define CONFIG_LED_ILLUMINATOR_ENABLED 0
 
 // LED FLASH setup
 #if CONFIG_LED_ILLUMINATOR_ENABLED

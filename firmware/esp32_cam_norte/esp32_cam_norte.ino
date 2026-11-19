@@ -12,6 +12,8 @@
 #include <WiFiUdp.h>
 #include <HTTPClient.h>
 #include <HTTPUpdate.h>
+#include "soc/soc.h"
+#include "soc/rtc_cntl_reg.h"
 
 // ---------- CONFIGURACIÓN DE RED Y VERSIÓN ----------
 const char* FIRMWARE_VERSION = "2.5.1";
@@ -55,27 +57,14 @@ unsigned long lastInference = 0;
 unsigned long lastFrameTime = 0;
 
 void setup() {
+  // Desactivar el detector de caídas de tensión para evitar que la base MB desestabilice el bus
+  WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
+
   Serial.begin(115200);
-  delay(1000);
-  Serial.println("\n[CAM-01] Iniciando ESP32-CAM (Modo Ultra Baja Latencia UDP)...");
+  delay(500);
+  Serial.println("\n[CAM-01] Iniciando ESP32-CAM (Base MB)...");
 
-  // Conexión WiFi
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  int retries = 0;
-  while (WiFi.status() != WL_CONNECTED && retries < 25) {
-    delay(500);
-    Serial.print(".");
-    retries++;
-  }
-  if (WiFi.status() == WL_CONNECTED) {
-    Serial.println("\n[CAM-01] Conectado a WiFi: " + WiFi.localIP().toString());
-    udp.begin(UDP_PORT);
-  } else {
-    Serial.println("\n[CAM-01] Falló conexión WiFi inicial.");
-  }
-
-  // Configuración del sensor OV2640
+  // Configuración del sensor OV2640 (SE INICIALIZA PRIMERO CON ALIMENTACIÓN LIMPIA)
   camera_config_t config;
   config.ledc_channel = LEDC_CHANNEL_0;
   config.ledc_timer = LEDC_TIMER_0;
@@ -95,15 +84,15 @@ void setup() {
   config.pin_sccb_scl = SIOC_GPIO_NUM;
   config.pin_pwdn = PWDN_GPIO_NUM;
   config.pin_reset = RESET_GPIO_NUM;
-  config.xclk_freq_hz = 10000000; // 10MHz: frecuencia óptima que elimina el ruido de bus y el FB-OVF
+  config.xclk_freq_hz = 10000000; // 10MHz para señal limpia y sin FB-OVF
   config.pixel_format = PIXFORMAT_JPEG;
-  config.grab_mode = CAMERA_GRAB_LATEST; // Mantiene el buffer fresco y drena el DMA automáticamente
+  config.grab_mode = CAMERA_GRAB_LATEST;
 
   if (psramFound()) {
     Serial.printf("[CAM-01] PSRAM detectada: %d bytes libres.\n", ESP.getFreePsram());
     config.frame_size = FRAMESIZE_QVGA; // 320x240
     config.jpeg_quality = 12;
-    config.fb_count = 2; // Doble buffer en PSRAM: mientras el CPU lee uno, el DMA escribe el otro
+    config.fb_count = 2; // Doble buffer en PSRAM
     config.fb_location = CAMERA_FB_IN_PSRAM;
   } else {
     Serial.println("[CAM-01] ADVERTENCIA: PSRAM NO detectada.");
@@ -118,7 +107,7 @@ void setup() {
     Serial.printf("[CAM-01] Error iniciando cámara: 0x%x\n", err);
     return;
   }
-  Serial.println("[CAM-01] Cámara OV2640 lista para UDP streaming.");
+  Serial.println("[CAM-01] Cámara OV2640 calibrada y lista.");
 
   sensor_t * s = esp_camera_sensor_get();
   if (s != NULL) {
@@ -126,6 +115,30 @@ void setup() {
     s->set_quality(s, 14);
     s->set_vflip(s, 1);
     s->set_hmirror(s, 0);
+  }
+
+  // Descartar los primeros 3 fotogramas de calentamiento del sensor
+  for (int i = 0; i < 3; i++) {
+    camera_fb_t * warm_fb = esp_camera_fb_get();
+    if (warm_fb) esp_camera_fb_return(warm_fb);
+    delay(50);
+  }
+
+  // AHORA QUE EL SENSOR ESTÁ CALIBRADO, ENCENDEMOS EL WIFI
+  Serial.println("[CAM-01] Conectando a red WiFi...");
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  int retries = 0;
+  while (WiFi.status() != WL_CONNECTED && retries < 25) {
+    delay(500);
+    Serial.print(".");
+    retries++;
+  }
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("\n[CAM-01] Conectado a WiFi: " + WiFi.localIP().toString());
+    udp.begin(UDP_PORT);
+  } else {
+    Serial.println("\n[CAM-01] Falló conexión WiFi inicial.");
   }
 }
 

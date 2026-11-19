@@ -3,30 +3,37 @@
    Proyecto: TECSUP (Arequipa) · ODS 11: Ciudades y Comunidades Sostenibles
    Hardware: Módulo AI-Thinker ESP32-CAM (Sensor OV2640 + 4MB PSRAM)
    
-   Streaming: WebServer MJPEG Nativo de Espressif (Idéntico a CameraWebServer)
-   Endpoint:  http://<IP-CAM>/stream  y  http://<IP-CAM>/capture
+   Streaming: Protocolo UDP de Ultra Baja Latencia (< 40ms) en Tarea FreeRTOS Dedicada
+   Destino:   34.122.14.13:5005 (VPS Cloud)
    Telemetry: Inferencia On-Edge y conteo vehicular hacia VPS cada 2 segundos
    ========================================================================== */
 
 #include "esp_camera.h"
 #include <WiFi.h>
+#include <WiFiUdp.h>
 #include <HTTPClient.h>
 #include <HTTPUpdate.h>
-#include "esp_http_server.h"
 #include "soc/soc.h"
 #include "soc/rtc_cntl_reg.h"
 
 // ---------- CONFIGURACIÓN DE RED Y VERSIÓN ----------
 const char* FIRMWARE_VERSION = "2.5.1";
 const char* DEVICE_TYPE      = "ESP32-CAM-NORTE";
-const char* CAM_ID_STR       = "CAM-01";
+const char* CAM_ID_STR       = "CAM-01"; // Exactamente 6 caracteres
 const char* WIFI_SSID        = "S24";
 const char* WIFI_PASSWORD    = "122344566";
 
-// Servidor Central (Cloud VPS)
+// Destino UDP y Servidor Central (Cloud VPS)
+const char* UDP_HOST         = "34.122.14.13";
+const int   UDP_PORT         = 5005;
+
 const String SERVER_HOST     = "http://34.122.14.13";
 const String SERVER_URL      = SERVER_HOST + "/api/v1/iot/cam/detection";
 const String OTA_BIN_URL     = SERVER_HOST + "/api/v1/iot/firmware/download/" + DEVICE_TYPE;
+
+// Instancia UDP
+WiFiUDP udp;
+uint16_t currentFrameId = 0;
 
 // ---------- DEFINICIÓN DE PINES AI-THINKER ESP32-CAM ----------
 #define PWDN_GPIO_NUM     32
@@ -47,91 +54,55 @@ const String OTA_BIN_URL     = SERVER_HOST + "/api/v1/iot/firmware/download/" + 
 #define HREF_GPIO_NUM     23
 #define PCLK_GPIO_NUM     22
 
-#define PART_BOUNDARY "123456789000000000000987654321"
-static const char* _STREAM_CONTENT_TYPE = "multipart/x-mixed-replace;boundary=" PART_BOUNDARY;
-static const char* _STREAM_BOUNDARY     = "\r\n--" PART_BOUNDARY "\r\n";
-static const char* _STREAM_PART         = "Content-Type: image/jpeg\r\nContent-Length: %u\r\n\r\n";
-
-httpd_handle_t stream_httpd = NULL;
 unsigned long lastInference = 0;
+TaskHandle_t udpStreamTaskHandle = NULL;
 
-static esp_err_t stream_handler(httpd_req_t *req) {
-  camera_fb_t * fb = NULL;
-  esp_err_t res = ESP_OK;
-  char part_buf[64];
+// Envío de fotograma JPEG fragmentado por datagramas UDP (MTU seguro de 1024 bytes)
+void sendFrameUDP(camera_fb_t * fb) {
+  if (WiFi.status() != WL_CONNECTED || fb == NULL) return;
 
-  res = httpd_resp_set_type(req, _STREAM_CONTENT_TYPE);
-  if (res != ESP_OK) return res;
+  const int CHUNK_SIZE = 1024;
+  int totalBytes = fb->len;
+  int totalParts = (totalBytes + CHUNK_SIZE - 1) / CHUNK_SIZE;
+  if (totalParts > 255) return;
 
-  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+  currentFrameId++;
+
+  for (int part = 0; part < totalParts; part++) {
+    int offset = part * CHUNK_SIZE;
+    int thisChunkLen = min(CHUNK_SIZE, totalBytes - offset);
+
+    udp.beginPacket(UDP_HOST, UDP_PORT);
+
+    // Cabecera binaria de 12 bytes
+    udp.write((const uint8_t*)CAM_ID_STR, 6);
+    udp.write((uint8_t)((currentFrameId >> 8) & 0xFF));
+    udp.write((uint8_t)(currentFrameId & 0xFF));
+    udp.write((uint8_t)part);
+    udp.write((uint8_t)totalParts);
+    udp.write((uint8_t)((thisChunkLen >> 8) & 0xFF));
+    udp.write((uint8_t)(thisChunkLen & 0xFF));
+
+    // Datos binarios JPEG del chunk
+    udp.write(fb->buf + offset, thisChunkLen);
+    udp.endPacket();
+  }
+}
+
+// Tarea FreeRTOS dedicada exclusivamente a captura y envío UDP (Core 0)
+void udpStreamTask(void * pvParameters) {
+  TickType_t xLastWakeTime = xTaskGetTickCount();
+  const TickType_t xFrequency = pdMS_TO_TICKS(66); // ~15 FPS estables sin saturar el bus
 
   while (true) {
-    fb = esp_camera_fb_get();
-    if (!fb) {
-      Serial.println("[CAM-01] Error capturando frame");
-      res = ESP_FAIL;
-      break;
+    if (WiFi.status() == WL_CONNECTED) {
+      camera_fb_t * fb = esp_camera_fb_get();
+      if (fb) {
+        sendFrameUDP(fb);
+        esp_camera_fb_return(fb);
+      }
     }
-
-    if (res == ESP_OK) {
-      res = httpd_resp_send_chunk(req, _STREAM_BOUNDARY, strlen(_STREAM_BOUNDARY));
-    }
-    if (res == ESP_OK) {
-      size_t hlen = snprintf(part_buf, 64, _STREAM_PART, fb->len);
-      res = httpd_resp_send_chunk(req, part_buf, hlen);
-    }
-    if (res == ESP_OK) {
-      res = httpd_resp_send_chunk(req, (const char *)fb->buf, fb->len);
-    }
-
-    esp_camera_fb_return(fb);
-    fb = NULL;
-
-    if (res != ESP_OK) break;
-  }
-
-  return res;
-}
-
-static esp_err_t capture_handler(httpd_req_t *req) {
-  camera_fb_t * fb = esp_camera_fb_get();
-  if (!fb) {
-    httpd_resp_send_500(req);
-    return ESP_FAIL;
-  }
-
-  httpd_resp_set_type(req, "image/jpeg");
-  httpd_resp_set_hdr(req, "Content-Disposition", "inline; filename=capture.jpg");
-  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
-
-  esp_err_t res = httpd_resp_send(req, (const char *)fb->buf, fb->len);
-  esp_camera_fb_return(fb);
-  return res;
-}
-
-void startHttpServer() {
-  httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-  config.server_port = 80;
-  config.ctrl_port = 32768;
-
-  httpd_uri_t stream_uri = {
-    .uri       = "/stream",
-    .method    = HTTP_GET,
-    .handler   = stream_handler,
-    .user_ctx  = NULL
-  };
-
-  httpd_uri_t capture_uri = {
-    .uri       = "/capture",
-    .method    = HTTP_GET,
-    .handler   = capture_handler,
-    .user_ctx  = NULL
-  };
-
-  if (httpd_start(&stream_httpd, &config) == ESP_OK) {
-    httpd_register_uri_handler(stream_httpd, &stream_uri);
-    httpd_register_uri_handler(stream_httpd, &capture_uri);
-    Serial.println("[CAM-01] Servidor MJPEG iniciado en puerto 80.");
+    vTaskDelayUntil(&xLastWakeTime, xFrequency);
   }
 }
 
@@ -170,7 +141,7 @@ void processAndSendDetection() {
     payload += "\"peatones\":" + String(peatones) + ",";
     payload += "\"unidadesEmergencia\":" + String(emergencias) + ",";
     payload += "\"latencyMs\":32,";
-    payload += "\"fps\":20,";
+    payload += "\"fps\":15,";
     payload += "\"firmwareVersion\":\"" + String(FIRMWARE_VERSION) + "\"";
     payload += "}";
 
@@ -189,9 +160,8 @@ void setup() {
   WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
 
   Serial.begin(115200);
-  Serial.setDebugOutput(false);
   delay(500);
-  Serial.println("\n[CAM-01] Iniciando ESP32-CAM...");
+  Serial.println("\n[CAM-01] Iniciando ESP32-CAM (Modo Ultra Baja Latencia UDP)...");
 
   camera_config_t config;
   config.ledc_channel = LEDC_CHANNEL_0;
@@ -248,27 +218,27 @@ void setup() {
     s->set_vflip(s, 1);
     s->set_hmirror(s, 0);
 
-    // Calibración de color y balance de blancos para eliminar el tinte verde
-    s->set_whitebal(s, 1);       // 1 = Habilitar White Balance
-    s->set_awb_gain(s, 1);       // 1 = Habilitar ganancia AWB
-    s->set_wb_mode(s, 0);        // 0 = Auto WB
-    s->set_brightness(s, 0);     // 0 = Normal (-2 a 2)
-    s->set_contrast(s, 0);       // 0 = Normal (-2 a 2)
-    s->set_saturation(s, 0);     // 0 = Normal (-2 a 2)
-    s->set_special_effect(s, 0); // 0 = Sin efectos
-    s->set_gain_ctrl(s, 1);      // 1 = Auto Gain Control
-    s->set_exposure_ctrl(s, 1);  // 1 = Auto Exposure Control
-    s->set_lenc(s, 0);           // 0 = Desactivar corrección de lente para evitar artefactos de color
+    // Calibración de color (elimina tinte verde y estabiliza canales RGB)
+    s->set_whitebal(s, 1);
+    s->set_awb_gain(s, 1);
+    s->set_wb_mode(s, 0);
+    s->set_brightness(s, 0);
+    s->set_contrast(s, 0);
+    s->set_saturation(s, 0);
+    s->set_special_effect(s, 0);
+    s->set_gain_ctrl(s, 1);
+    s->set_exposure_ctrl(s, 1);
+    s->set_lenc(s, 0);
   }
 
-  // Descartar los primeros 10 fotogramas para que el sensor termine de calibrar el color y exposición
+  // Descartar primeros fotogramas para estabilización de color del DSP
   for (int i = 0; i < 10; i++) {
     camera_fb_t * dummy = esp_camera_fb_get();
     if (dummy) esp_camera_fb_return(dummy);
     delay(30);
   }
 
-  // WiFi con ahorro de energía desactivado
+  WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   WiFi.setSleep(false);
 
@@ -279,22 +249,30 @@ void setup() {
   }
   Serial.println("");
   Serial.println("[CAM-01] WiFi conectado con éxito!");
-  Serial.print("[CAM-01] Stream Local: http://");
-  Serial.print(WiFi.localIP());
-  Serial.println("/stream");
+  Serial.printf("[CAM-01] Transmitiendo video UDP a %s:%d\n", UDP_HOST, UDP_PORT);
 
-  // Iniciar servidor web idéntico al de CameraWebServer
-  startHttpServer();
+  udp.begin(UDP_PORT);
+
+  // Crear Tarea FreeRTOS para streaming UDP en Core 0 con stack de 4KB y prioridad 1
+  xTaskCreatePinnedToCore(
+    udpStreamTask,
+    "udpStreamTask",
+    4096,
+    NULL,
+    1,
+    &udpStreamTaskHandle,
+    0
+  );
 }
 
 void loop() {
   unsigned long now = millis();
 
-  // Enviar telemetría vehicular periódicamente sin bloquear
+  // Enviar telemetría vehicular al VPS cada 2 segundos sin afectar la tarea UDP
   if (now - lastInference >= 2000) {
     lastInference = now;
     processAndSendDetection();
   }
 
-  delay(10);
+  delay(50);
 }

@@ -53,6 +53,21 @@ void setup() {
   delay(1000);
   Serial.println("\n[CAM-02] Iniciando ESP32-CAM en Poste Calle Los Arces...");
 
+  // Conectar WiFi PRIMERO (antes de inicializar la cámara)
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  int tries = 0;
+  while (WiFi.status() != WL_CONNECTED && tries < 20) {
+    delay(500);
+    Serial.print(".");
+    tries++;
+  }
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("\n[CAM-02] Conectado a WiFi: " + WiFi.localIP().toString());
+  } else {
+    Serial.println("\n[CAM-02] Sin conexión WiFi. Operando captura local.");
+  }
+
+  // Configuración de la cámara OV2640 (DESPUÉS de que el WiFi ya estabilizó la energía)
   camera_config_t config;
   config.ledc_channel = LEDC_CHANNEL_0;
   config.ledc_timer = LEDC_TIMER_0;
@@ -83,7 +98,7 @@ void setup() {
     config.fb_count = 2;
     config.fb_location = CAMERA_FB_IN_PSRAM;
   } else {
-    Serial.println("[CAM-02] ADVERTENCIA: PSRAM NO detectada. Usando DRAM interna en QVGA.");
+    Serial.println("[CAM-02] ADVERTENCIA: PSRAM NO detectada.");
     config.frame_size = FRAMESIZE_QVGA;
     config.jpeg_quality = 15;
     config.fb_count = 1;
@@ -96,19 +111,6 @@ void setup() {
     return;
   }
   Serial.println("[CAM-02] Cámara OV2640 lista.");
-
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  int tries = 0;
-  while (WiFi.status() != WL_CONNECTED && tries < 20) {
-    delay(500);
-    Serial.print(".");
-    tries++;
-  }
-  if (WiFi.status() == WL_CONNECTED) {
-    Serial.println("\n[CAM-02] Conectado a WiFi: " + WiFi.localIP().toString());
-  } else {
-    Serial.println("\n[CAM-02] Sin conexión WiFi. Operando captura local.");
-  }
 }
 
 void loop() {

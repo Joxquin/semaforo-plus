@@ -53,7 +53,21 @@ void setup() {
   delay(1000);
   Serial.println("\n[CAM-01] Iniciando ESP32-CAM en Poste Av. Ejército...");
 
-  // Configuración de la cámara OV2640
+  // Conectar WiFi PRIMERO (antes de inicializar la cámara)
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  int tries = 0;
+  while (WiFi.status() != WL_CONNECTED && tries < 20) {
+    delay(500);
+    Serial.print(".");
+    tries++;
+  }
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("\n[CAM-01] Conectado a WiFi: " + WiFi.localIP().toString());
+  } else {
+    Serial.println("\n[CAM-01] Sin conexión WiFi. Operando captura local.");
+  }
+
+  // Configuración de la cámara OV2640 (DESPUÉS de que el WiFi ya estabilizó la energía)
   camera_config_t config;
   config.ledc_channel = LEDC_CHANNEL_0;
   config.ledc_timer = LEDC_TIMER_0;
@@ -73,20 +87,19 @@ void setup() {
   config.pin_sccb_scl = SIOC_GPIO_NUM;
   config.pin_pwdn = PWDN_GPIO_NUM;
   config.pin_reset = RESET_GPIO_NUM;
-  config.xclk_freq_hz = 10000000; // 10MHz para evitar FB-OVF
+  config.xclk_freq_hz = 10000000;
   config.pixel_format = PIXFORMAT_JPEG;
   config.grab_mode = CAMERA_GRAB_LATEST;
 
-  // Imprimir diagnóstico de PSRAM al arranque
   if (psramFound()) {
     Serial.printf("[CAM-01] PSRAM detectada: %d bytes libres.\n", ESP.getFreePsram());
-    config.frame_size = FRAMESIZE_VGA; // 640x480
+    config.frame_size = FRAMESIZE_VGA;
     config.jpeg_quality = 12;
     config.fb_count = 2;
     config.fb_location = CAMERA_FB_IN_PSRAM;
   } else {
-    Serial.println("[CAM-01] ADVERTENCIA: PSRAM NO detectada. Usando DRAM interna en QVGA.");
-    config.frame_size = FRAMESIZE_QVGA;  // 320x240 (imprescindible si no hay PSRAM)
+    Serial.println("[CAM-01] ADVERTENCIA: PSRAM NO detectada.");
+    config.frame_size = FRAMESIZE_QVGA;
     config.jpeg_quality = 15;
     config.fb_count = 1;
     config.fb_location = CAMERA_FB_IN_DRAM;
@@ -98,20 +111,6 @@ void setup() {
     return;
   }
   Serial.println("[CAM-01] Cámara OV2640 lista.");
-
-  // Conectar WiFi
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  int tries = 0;
-  while (WiFi.status() != WL_CONNECTED && tries < 20) {
-    delay(500);
-    Serial.print(".");
-    tries++;
-  }
-  if (WiFi.status() == WL_CONNECTED) {
-    Serial.println("\n[CAM-01] Conectado a WiFi: " + WiFi.localIP().toString());
-  } else {
-    Serial.println("\n[CAM-01] Sin conexión WiFi. Operando captura local.");
-  }
 }
 
 void loop() {

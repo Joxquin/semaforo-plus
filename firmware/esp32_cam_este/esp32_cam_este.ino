@@ -14,11 +14,23 @@
 #include "esp_camera.h"
 #include <WiFi.h>
 #include <HTTPClient.h>
+#include <HTTPUpdate.h>
 
-// ---------- CONFIGURACIÓN DE RED ----------
-const char* WIFI_SSID     = "TECSUP_LAB_IOT";
-const char* WIFI_PASSWORD = "TuPasswordSeguro";
-const char* SERVER_URL    = "http://192.168.1.100:8080/api/v1/iot/cam/detection";
+// ---------- CONFIGURACIÓN DE RED Y VERSIÓN ----------
+const char* FIRMWARE_VERSION = "2.4.1";
+const char* DEVICE_TYPE      = "ESP32-CAM-ESTE";
+const char* WIFI_SSID        = "TECSUP_LAB_IOT";       // Cambiar por tu red WiFi
+const char* WIFI_PASSWORD    = "TuPasswordSeguro";     // Cambiar por tu clave WiFi
+
+// URL Base del servidor VPS (Conexión pública por HTTP puerto 80)
+const String SERVER_HOST     = "http://34.122.14.13"; // O bien "http://faccisa.shop"
+const String SERVER_URL      = SERVER_HOST + "/api/v1/iot/cam/detection";
+const String OTA_CHECK_URL   = SERVER_HOST + "/api/v1/iot/firmware/check-update?device=" + DEVICE_TYPE + "&currentVersion=" + FIRMWARE_VERSION;
+const String OTA_BIN_URL     = SERVER_HOST + "/api/v1/iot/firmware/download/" + DEVICE_TYPE;
+
+// Temporizadores OTA (chequea actualizaciones cada 60 segundos)
+unsigned long lastOtaCheck = 0;
+const unsigned long OTA_CHECK_INTERVAL = 60000;
 
 // ---------- DEFINICIÓN DE PINES AI-THINKER ESP32-CAM ----------
 #define PWDN_GPIO_NUM     32
@@ -106,6 +118,44 @@ void loop() {
     lastInference = now;
     processAndSendDetection();
   }
+
+  // Verificación periódica de nuevo Firmware OTA por WiFi cada 60s
+  if (now - lastOtaCheck >= OTA_CHECK_INTERVAL) {
+    lastOtaCheck = now;
+    checkAndPerformOTA();
+  }
+}
+
+void checkAndPerformOTA() {
+  if (WiFi.status() != WL_CONNECTED) return;
+
+  HTTPClient http;
+  http.begin(OTA_CHECK_URL);
+  int httpCode = http.GET();
+
+  if (httpCode == HTTP_CODE_OK) {
+    String payload = http.getString();
+    if (payload.indexOf("\"updateAvailable\":true") >= 0) {
+      Serial.println("\n[OTA] ¡Nueva versión de firmware detectada para CAM-02!");
+      Serial.println("[OTA] Descargando binario y actualizando vía WiFi...");
+
+      WiFiClient client;
+      t_httpUpdate_return ret = httpUpdate.update(client, OTA_BIN_URL);
+
+      switch (ret) {
+        case HTTP_UPDATE_FAILED:
+          Serial.printf("[OTA] Error: (%d): %s\n", httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
+          break;
+        case HTTP_UPDATE_NO_UPDATES:
+          Serial.println("[OTA] Sin actualizaciones.");
+          break;
+        case HTTP_UPDATE_OK:
+          Serial.println("[OTA] ¡Actualización exitosa! Reiniciando ESP32-CAM...");
+          break;
+      }
+    }
+  }
+  http.end();
 }
 
 void processAndSendDetection() {

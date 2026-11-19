@@ -216,6 +216,40 @@ class ApiController(
         return ResponseEntity.ok(response)
     }
 
+    // Almacén en memoria de los fotogramas reales capturados por el lente
+    private val latestCameraFrames = java.util.concurrent.ConcurrentHashMap<String, ByteArray>()
+    private val latestFrameTimestamps = java.util.concurrent.ConcurrentHashMap<String, Long>()
+
+    @PostMapping("/iot/cam/frame", consumes = ["image/jpeg", "application/octet-stream"])
+    fun uploadCameraFrame(
+        @RequestParam(defaultValue = "CAM-01") camId: String,
+        @RequestBody frameBytes: ByteArray
+    ): ResponseEntity<Map<String, Any>> {
+        latestCameraFrames[camId] = frameBytes
+        latestFrameTimestamps[camId] = System.currentTimeMillis()
+        return ResponseEntity.ok(
+            mapOf(
+                "status" to "FRAME_STORED",
+                "camId" to camId,
+                "bytes" to frameBytes.size,
+                "timestamp" to latestFrameTimestamps[camId]!!
+            )
+        )
+    }
+
+    @GetMapping("/realtime/cam/{camId}/live.jpg")
+    fun getCameraLiveFrame(@PathVariable camId: String): ResponseEntity<ByteArray> {
+        val bytes = latestCameraFrames[camId]
+        return if (bytes != null && bytes.isNotEmpty()) {
+            ResponseEntity.ok()
+                .contentType(org.springframework.http.MediaType.IMAGE_JPEG)
+                .header(org.springframework.http.HttpHeaders.CACHE_CONTROL, "no-cache, no-store, must-revalidate")
+                .body(bytes)
+        } else {
+            ResponseEntity.notFound().build()
+        }
+    }
+
     @PostMapping("/iot/simulate-telemetry")
     fun simulateTelemetry(): Map<String, Any> {
         // Enlaza la ESP32 central y las dos ESP32-CAM con datos de prueba reales para verificar el cruce

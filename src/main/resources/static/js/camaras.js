@@ -14,29 +14,19 @@
     cams = D.service.getCameras().map(c => Object.assign(c, { i: VS.byId(c.int) }));
   }
 
-  /* Ilustración de una calle (SVG). Los vehículos se animan con CSS; más congestión = más lentos. */
+  /* Renderizado de video/foto REAL capturada por el lente del ESP32-CAM */
   function scene(c) {
-    const s = D.hash(c.id);
     if (c.status === 'Sin señal') {
-      let n = ''; for (let k = 0; k < 150; k++) n += `<rect x="${(D.rnd(s + k) * 320) | 0}" y="${(D.rnd(s + k + 300) * 180) | 0}" width="${4 + (k % 4) * 3}" height="2" fill="#fff" opacity="${(.04 + D.rnd(k + 9) * .1).toFixed(2)}"/>`;
-      return `<svg viewBox="0 0 320 180" role="img" aria-label="Sin señal"><rect width="320" height="180" fill="#0a0c10"/>${n}<text x="160" y="94" text-anchor="middle" fill="#929BA8" font-size="13" font-family="Inter,sans-serif">SIN SEÑAL</text></svg>`;
+      return `<div class="cam-feed-placeholder offline">
+        <svg viewBox="0 0 320 180" role="img" aria-label="Sin señal"><rect width="320" height="180" fill="#0a0c10"/><text x="160" y="94" text-anchor="middle" fill="#929BA8" font-size="13" font-family="Inter,sans-serif">CÁMARA FÍSICA DESCONECTADA</text></svg>
+      </div>`;
     }
-    let b = '', x = -6;
-    for (let k = 0; x < 330; k++) {
-      const w = 30 + ((s + k * 7) % 22), h = 34 + ((s * 3 + k * 11) % 46);
-      b += `<rect x="${x}" y="${100 - h}" width="${w}" height="${h}" fill="${k % 2 ? '#171d26' : '#1c232d'}"/>`;
-      for (let wy = 100 - h + 6; wy < 92; wy += 11) for (let wx = x + 5; wx < x + w - 6; wx += 9) if (D.rnd(s + wx * 3 + wy) > .62) b += `<rect x="${wx}" y="${wy}" width="3" height="4" fill="#d8c27a" opacity=".55"/>`;
-      x += w + 2;
-    }
-    const n = Math.min(inView(c), 9), dur = (7 + c.i.cong / 100 * 14).toFixed(1), colors = ['#8BA4C7', '#c3cbd6', '#6d7a8c', '#9aa5b4', '#d6b45a'];
-    let cars = '';
-    for (let k = 0; k < n; k++) {
-      const right = k % 2 === 0, y = right ? 140 : 117, per = Math.ceil(n / 2), slot = Math.floor(k / 2), col = colors[(s + k) % colors.length];
-      const px = ((slot * 320 / per) + (right ? 0 : 24)) % 320;
-      cars += `<g class="car${right ? '' : ' rev'}" style="--d:${dur}s;animation-delay:-${(slot * dur / per).toFixed(1)}s" transform="translate(${px.toFixed(0)},0)"><rect x="0" y="${y}" width="30" height="11" rx="3" fill="${col}"/><rect x="6" y="${y - 5}" width="16" height="6" rx="2" fill="${col}"/><circle cx="7" cy="${y + 11}" r="2.6" fill="#0b0d10"/><circle cx="23" cy="${y + 11}" r="2.6" fill="#0b0d10"/></g>`;
-    }
-    const ls = VS.lightState(c.i, 'E'), lc = { red: '#F87171', yellow: '#FACC15', green: '#4ADE80' };
-    return `<svg viewBox="0 0 320 180" role="img" aria-label="Vista ilustrativa de ${esc(c.name)} con ${inView(c)} vehículos estimados"><rect width="320" height="100" fill="#0e131a"/>${b}<rect y="100" width="320" height="8" fill="#232a33"/><rect y="108" width="320" height="52" fill="#171b21"/><rect y="160" width="320" height="20" fill="#232a33"/><line x1="0" y1="134" x2="320" y2="134" stroke="#5b6573" stroke-width="1.5" stroke-dasharray="10 8"/>${cars}<rect x="298" y="64" width="3" height="46" fill="#2b3340"/><rect x="293" y="52" width="13" height="30" rx="3" fill="#0f1318"/><circle cx="299.5" cy="59" r="3.4" fill="${ls === 'red' ? lc.red : '#2a313b'}"/><circle cx="299.5" cy="67" r="3.4" fill="${ls === 'yellow' ? lc.yellow : '#2a313b'}"/><circle cx="299.5" cy="75" r="3.4" fill="${ls === 'green' ? lc.green : '#2a313b'}"/></svg>`;
+    // Imagen real capturada por el lente del ESP32-CAM vía HTTP
+    const liveUrl = `/api/v1/realtime/cam/${c.id}/live.jpg?t=${Date.now()}`;
+    return `<div class="cam-feed-container" style="position:relative;width:100%;height:180px;background:#05070a;overflow:hidden;border-radius:8px;">
+      <img src="${liveUrl}" alt="Transmisión real ${esc(c.id)}" style="width:100%;height:100%;object-fit:cover;" onerror="this.onerror=null;this.parentElement.innerHTML='<div style=\\\'height:100%;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:12px;\\\'>Esperando fotograma del lente OV2640...</div>';">
+      <div style="position:absolute;bottom:8px;left:8px;background:rgba(0,0,0,0.7);padding:2px 8px;border-radius:4px;font-size:11px;color:#4ade80;font-weight:600;">EN DIRECTO (LENTE FÍSICO)</div>
+    </div>`;
   }
 
   const filtered = () => { const q = st.q.trim().toLowerCase(); return cams.filter(c => (!q || [c.id, c.name, c.i.roads.join(' ')].join(' ').toLowerCase().includes(q)) && (!st.stt || c.status === st.stt) && (!st.zone || c.i.zone === st.zone)); };

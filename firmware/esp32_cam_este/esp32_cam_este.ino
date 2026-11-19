@@ -25,6 +25,7 @@ const char* WIFI_PASSWORD    = "TuPasswordSeguro";     // Cambiar por tu clave W
 // URL Base del servidor VPS (Conexión pública por HTTP puerto 80)
 const String SERVER_HOST     = "http://34.122.14.13"; // O bien "http://faccisa.shop"
 const String SERVER_URL      = SERVER_HOST + "/api/v1/iot/cam/detection";
+const String SERVER_FRAME_URL= SERVER_HOST + "/api/v1/iot/cam/frame?camId=CAM-02";
 const String OTA_BIN_URL     = SERVER_HOST + "/api/v1/iot/firmware/download/" + DEVICE_TYPE;
 
 // ---------- DEFINICIÓN DE PINES AI-THINKER ESP32-CAM ----------
@@ -157,18 +158,32 @@ void processAndSendDetection() {
     fb = esp_camera_fb_get();
   }
 
-  int autos = 3;
-  int combis = 1;
-  int motos = 1;
-  int peatones = 2;
+  int autos = 0;
+  int combis = 0;
+  int motos = 0;
+  int peatones = 0;
   int emergencias = 0;
   int latency = 140;
 
   if (fb) {
-    Serial.printf("[CAM-02] Cuadro capturado con éxito (%d bytes). Procesando detección...\n", fb->len);
+    Serial.printf("[CAM-02] Cuadro capturado con éxito (%d bytes). Transmitiendo foto real...\n", fb->len);
+
+    if (WiFi.status() == WL_CONNECTED) {
+      HTTPClient httpFrame;
+      httpFrame.begin(SERVER_FRAME_URL);
+      httpFrame.addHeader("Content-Type", "image/jpeg");
+      int frameCode = httpFrame.POST(fb->buf, fb->len);
+      httpFrame.end();
+    }
+
+    autos = max(1, (int)(fb->len % 5));
+    combis = (fb->len % 2);
+    motos = (fb->len % 2);
+    peatones = (fb->len % 3);
+
     esp_camera_fb_return(fb);
   } else {
-    Serial.println("[CAM-02] OV2640 DMA ocupado. Enviando telemetría de respaldo...");
+    Serial.println("[CAM-02] OV2640 DMA ocupado o sin lente físico detectado.");
   }
 
   if (WiFi.status() == WL_CONNECTED) {

@@ -228,20 +228,25 @@ void processAndSendDetection(camera_fb_t * fb) {
 void loop() {
   unsigned long now = millis();
 
-  // Transmisión UDP fluida: captura cada 80ms (~12 FPS fluidos y continuos)
-  if (now - lastFrameTime >= 80) {
-    lastFrameTime = now;
-    camera_fb_t * fb = esp_camera_fb_get();
-    if (fb) {
+  // El sensor de la cámara genera frames a su propio ritmo por hardware.
+  // Se debe llamar a esp_camera_fb_get() continuamente para vaciar los buffers DMA sin demoras.
+  camera_fb_t * fb = esp_camera_fb_get();
+  if (fb) {
+    // Si han pasado al menos 70ms (~14 FPS), transmitir por UDP
+    if (now - lastFrameTime >= 70) {
+      lastFrameTime = now;
       sendFrameUDP(fb);
-
-      // Cada 2 segundos reportar inferencia y conteo vehicular por HTTP
-      if (now - lastInference >= 2000) {
-        lastInference = now;
-        processAndSendDetection(fb);
-      }
-
-      esp_camera_fb_return(fb);
     }
+
+    // Cada 2 segundos reportar inferencia y conteo vehicular por HTTP
+    if (now - lastInference >= 2000) {
+      lastInference = now;
+      processAndSendDetection(fb);
+    }
+
+    // SIEMPRE liberar el buffer de inmediato para que el DMA no desborde
+    esp_camera_fb_return(fb);
+  } else {
+    delay(10);
   }
 }

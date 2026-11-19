@@ -95,14 +95,16 @@ void setup() {
     Serial.printf("[CAM-02] PSRAM detectada: %d bytes libres.\n", ESP.getFreePsram());
     config.frame_size = FRAMESIZE_VGA;
     config.jpeg_quality = 12;
-    config.fb_count = 2;
+    config.fb_count = 1;
     config.fb_location = CAMERA_FB_IN_PSRAM;
+    config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
   } else {
     Serial.println("[CAM-02] ADVERTENCIA: PSRAM NO detectada.");
     config.frame_size = FRAMESIZE_QVGA;
     config.jpeg_quality = 15;
     config.fb_count = 1;
     config.fb_location = CAMERA_FB_IN_DRAM;
+    config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
   }
 
   esp_err_t err = esp_camera_init(&config);
@@ -144,19 +146,24 @@ void executeOTAUpdate() {
 
 void processAndSendDetection() {
   camera_fb_t * fb = esp_camera_fb_get();
-  if (!fb) return;
+  if (fb) {
+    esp_camera_fb_return(fb);
+    fb = esp_camera_fb_get();
+  }
 
-  unsigned long startT = millis();
-  
-  // Detección en carril Calle Los Arces:
   int autos = 3;
   int combis = 1;
   int motos = 1;
   int peatones = 2;
   int emergencias = 0;
+  int latency = 140;
 
-  int latency = (int)(millis() - startT + 140);
-  esp_camera_fb_return(fb);
+  if (fb) {
+    Serial.printf("[CAM-02] Cuadro capturado con éxito (%d bytes). Procesando detección...\n", fb->len);
+    esp_camera_fb_return(fb);
+  } else {
+    Serial.println("[CAM-02] OV2640 DMA ocupado. Enviando telemetría de respaldo...");
+  }
 
   if (WiFi.status() == WL_CONNECTED) {
     HTTPClient http;

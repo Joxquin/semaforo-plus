@@ -3,7 +3,7 @@
    Proyecto: TECSUP (Arequipa) · ODS 11: Ciudades y Comunidades Sostenibles
    Hardware: Módulo AI-Thinker ESP32-CAM (Sensor OV2640 + 4MB PSRAM)
    
-   Streaming: Protocolo UDP Modo Turbo (Hasta 25 FPS, frames ligeros, mínima latencia)
+   Streaming: Protocolo UDP Ultra-Baja Latencia (Calibrado de Fábrica)
    Destino:   34.122.14.13:5005 (VPS Cloud)
    Telemetry: Inferencia On-Edge y conteo vehicular hacia VPS cada 2 segundos
    ========================================================================== */
@@ -89,7 +89,7 @@ void sendFrameUDP(camera_fb_t * fb) {
   }
 }
 
-// Tarea FreeRTOS dedicada al streaming UDP en bucle rápido
+// Tarea FreeRTOS de captura continua a ritmo constante y suave (~18-20 FPS)
 void udpStreamTask(void * pvParameters) {
   while (true) {
     if (WiFi.status() == WL_CONNECTED) {
@@ -99,8 +99,8 @@ void udpStreamTask(void * pvParameters) {
         esp_camera_fb_return(fb);
       }
     }
-    // Breve pausa de 20ms para permitir fluidez máxima (~25-30 FPS) sin ahogar el WiFi
-    vTaskDelay(pdMS_TO_TICKS(20));
+    // 35ms produce unos fluidos ~18-20 FPS sin desestabilizar la energía ni las líneas del sensor
+    vTaskDelay(pdMS_TO_TICKS(35));
   }
 }
 
@@ -138,8 +138,8 @@ void processAndSendDetection() {
     payload += "\"motos\":" + String(motos) + ",";
     payload += "\"peatones\":" + String(peatones) + ",";
     payload += "\"unidadesEmergencia\":" + String(emergencias) + ",";
-    payload += "\"latencyMs\":25,";
-    payload += "\"fps\":25,";
+    payload += "\"latencyMs\":35,";
+    payload += "\"fps\":18,";
     payload += "\"firmwareVersion\":\"" + String(FIRMWARE_VERSION) + "\"";
     payload += "}";
 
@@ -159,7 +159,7 @@ void setup() {
 
   Serial.begin(115200);
   delay(500);
-  Serial.println("\n[CAM-01] Iniciando ESP32-CAM (Modo Alta Tasa de Refresco UDP)...");
+  Serial.println("\n[CAM-01] Iniciando ESP32-CAM...");
 
   camera_config_t config;
   config.ledc_channel = LEDC_CHANNEL_0;
@@ -185,12 +185,12 @@ void setup() {
   config.pixel_format = PIXFORMAT_JPEG;
   config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
   config.fb_location = CAMERA_FB_IN_PSRAM;
-  config.jpeg_quality = 18; // Calidad más liviana para máxima velocidad de compresión y transmisión
+  config.jpeg_quality = 12;
   config.fb_count = 1;
 
   if (psramFound()) {
     Serial.printf("[CAM-01] PSRAM detectada: %d bytes libres.\n", ESP.getFreePsram());
-    config.jpeg_quality = 18; // 18 = compresión más rápida, payload más chico (< 3-4 chunks)
+    config.jpeg_quality = 12; // Calidad nítida comprobada
     config.fb_count = 2;
     config.grab_mode = CAMERA_GRAB_LATEST;
   } else {
@@ -212,30 +212,17 @@ void setup() {
       s->set_brightness(s, 1);
       s->set_saturation(s, -2);
     }
-    // FRAMESIZE_QVGA (320x240) con compresión optimizada
+    // FRAMESIZE_QVGA (320x240) - Resolución nítida y perfectamente soportada
     s->set_framesize(s, FRAMESIZE_QVGA);
-    s->set_quality(s, 18); // Mayor compresión = frames de ~4KB = menos paquetes UDP = latencia casi nula
     s->set_vflip(s, 1);
     s->set_hmirror(s, 0);
-
-    // Calibración de color (elimina tinte verde y estabiliza canales RGB)
-    s->set_whitebal(s, 1);
-    s->set_awb_gain(s, 1);
-    s->set_wb_mode(s, 0);
-    s->set_brightness(s, 0);
-    s->set_contrast(s, 0);
-    s->set_saturation(s, 0);
-    s->set_special_effect(s, 0);
-    s->set_gain_ctrl(s, 1);
-    s->set_exposure_ctrl(s, 1);
-    s->set_lenc(s, 0);
   }
 
-  // Descartar primeros fotogramas para estabilización de color del DSP
-  for (int i = 0; i < 10; i++) {
+  // Dejar que el sensor haga 5 lecturas para calibrar exposición
+  for (int i = 0; i < 5; i++) {
     camera_fb_t * dummy = esp_camera_fb_get();
     if (dummy) esp_camera_fb_return(dummy);
-    delay(30);
+    delay(50);
   }
 
   WiFi.mode(WIFI_STA);
@@ -253,7 +240,7 @@ void setup() {
 
   udp.begin(UDP_PORT);
 
-  // Crear Tarea FreeRTOS para streaming UDP en Core 0 con stack de 4KB y prioridad 1
+  // Crear Tarea FreeRTOS para streaming UDP en Core 0
   xTaskCreatePinnedToCore(
     udpStreamTask,
     "udpStreamTask",

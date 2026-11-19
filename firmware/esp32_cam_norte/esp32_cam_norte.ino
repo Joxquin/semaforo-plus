@@ -73,18 +73,21 @@ void setup() {
   config.pin_sccb_scl = SIOC_GPIO_NUM;
   config.pin_pwdn = PWDN_GPIO_NUM;
   config.pin_reset = RESET_GPIO_NUM;
-  config.xclk_freq_hz = 20000000;
+  config.xclk_freq_hz = 10000000; // 10MHz para evitar FB-OVF
   config.pixel_format = PIXFORMAT_JPEG;
-  config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
+  config.grab_mode = CAMERA_GRAB_LATEST;
 
+  // Imprimir diagnóstico de PSRAM al arranque
   if (psramFound()) {
-    config.frame_size = FRAMESIZE_VGA; // 640x480 muy ligero y estable
+    Serial.printf("[CAM-01] PSRAM detectada: %d bytes libres.\n", ESP.getFreePsram());
+    config.frame_size = FRAMESIZE_VGA; // 640x480
     config.jpeg_quality = 12;
-    config.fb_count = 1; // 1 solo búfer evita el fallo de sincronía del DMA
+    config.fb_count = 2;
     config.fb_location = CAMERA_FB_IN_PSRAM;
   } else {
-    config.frame_size = FRAMESIZE_CIF;  // 400x296
-    config.jpeg_quality = 14;
+    Serial.println("[CAM-01] ADVERTENCIA: PSRAM NO detectada. Usando DRAM interna en QVGA.");
+    config.frame_size = FRAMESIZE_QVGA;  // 320x240 (imprescindible si no hay PSRAM)
+    config.jpeg_quality = 15;
     config.fb_count = 1;
     config.fb_location = CAMERA_FB_IN_DRAM;
   }

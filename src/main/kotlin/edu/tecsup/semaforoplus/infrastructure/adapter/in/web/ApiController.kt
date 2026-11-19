@@ -335,9 +335,9 @@ class ApiController(
 
     // Mapa en memoria con la versión disponible en el servidor
     private val availableFirmwareVersions = java.util.concurrent.ConcurrentHashMap<String, String>().apply {
-        put("ESP32-CENTRAL", "2.4.1")
-        put("ESP32-CAM-NORTE", "2.4.1")
-        put("ESP32-CAM-ESTE", "2.4.1")
+        put("ESP32-CENTRAL", "2.5.1")
+        put("ESP32-CAM-NORTE", "2.5.1")
+        put("ESP32-CAM-ESTE", "2.5.1")
     }
 
     @GetMapping("/iot/firmware/check-update")

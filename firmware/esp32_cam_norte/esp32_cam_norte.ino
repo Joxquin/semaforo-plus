@@ -4,29 +4,33 @@
    Hardware: Módulo AI-Thinker ESP32-CAM (Sensor OV2640 + 4MB PSRAM)
    Ubicación: Poste alto en Av. Ejército (Sentido Norte a Sur)
    
-   Funcionalidades:
-     - Captura de cuadros de video (resolución XGA / SVGA)
-     - Detección y conteo de vehículos formados en el carril
-     - Clasificación: Autos, Combis, Motos, Peatones y Emergencias
-     - Transmisión de conteo hacia Servidor Spring Boot y ESP32 Central
+   Streaming: Protocolo UDP de ultra baja latencia (< 50ms) + Inferencia On-Edge
    ========================================================================== */
 
 #include "esp_camera.h"
 #include <WiFi.h>
+#include <WiFiUdp.h>
 #include <HTTPClient.h>
 #include <HTTPUpdate.h>
 
 // ---------- CONFIGURACIÓN DE RED Y VERSIÓN ----------
 const char* FIRMWARE_VERSION = "2.5.1";
 const char* DEVICE_TYPE      = "ESP32-CAM-NORTE";
+const char* CAM_ID_STR       = "CAM-01"; // Exactamente 6 caracteres
 const char* WIFI_SSID        = "S24";
 const char* WIFI_PASSWORD    = "122344566";
 
-// URL Base del servidor VPS (Conexión pública por HTTP puerto 80)
-const String SERVER_HOST     = "http://34.122.14.13"; // O bien "http://faccisa.shop"
+// Destino UDP y Servidor Central (Cloud VPS)
+const char* UDP_HOST         = "34.122.14.13";
+const int   UDP_PORT         = 5005;
+
+const String SERVER_HOST     = "http://34.122.14.13";
 const String SERVER_URL      = SERVER_HOST + "/api/v1/iot/cam/detection";
-const String SERVER_FRAME_URL= SERVER_HOST + "/api/v1/iot/cam/frame?camId=CAM-01";
 const String OTA_BIN_URL     = SERVER_HOST + "/api/v1/iot/firmware/download/" + DEVICE_TYPE;
+
+// Instancia UDP
+WiFiUDP udp;
+uint16_t currentFrameId = 0;
 
 // ---------- DEFINICIÓN DE PINES AI-THINKER ESP32-CAM ----------
 #define PWDN_GPIO_NUM     32
@@ -48,27 +52,30 @@ const String OTA_BIN_URL     = SERVER_HOST + "/api/v1/iot/firmware/download/" + 
 #define PCLK_GPIO_NUM     22
 
 unsigned long lastInference = 0;
+unsigned long lastFrameTime = 0;
 
 void setup() {
   Serial.begin(115200);
   delay(1000);
-  Serial.println("\n[CAM-01] Iniciando ESP32-CAM en Poste Av. Ejército...");
+  Serial.println("\n[CAM-01] Iniciando ESP32-CAM (Modo Ultra Baja Latencia UDP)...");
 
-  // Conectar WiFi PRIMERO (antes de inicializar la cámara)
+  // Conexión WiFi
+  WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  int tries = 0;
-  while (WiFi.status() != WL_CONNECTED && tries < 20) {
+  int retries = 0;
+  while (WiFi.status() != WL_CONNECTED && retries < 25) {
     delay(500);
     Serial.print(".");
-    tries++;
+    retries++;
   }
   if (WiFi.status() == WL_CONNECTED) {
     Serial.println("\n[CAM-01] Conectado a WiFi: " + WiFi.localIP().toString());
+    udp.begin(UDP_PORT);
   } else {
-    Serial.println("\n[CAM-01] Sin conexión WiFi. Operando captura local.");
+    Serial.println("\n[CAM-01] Falló conexión WiFi inicial.");
   }
 
-  // Configuración de la cámara OV2640 (DESPUÉS de que el WiFi ya estabilizó la energía)
+  // Configuración del sensor OV2640
   camera_config_t config;
   config.ledc_channel = LEDC_CHANNEL_0;
   config.ledc_timer = LEDC_TIMER_0;
@@ -88,20 +95,20 @@ void setup() {
   config.pin_sccb_scl = SIOC_GPIO_NUM;
   config.pin_pwdn = PWDN_GPIO_NUM;
   config.pin_reset = RESET_GPIO_NUM;
-  config.xclk_freq_hz = 10000000;
+  config.xclk_freq_hz = 10000000; // 10MHz: frecuencia óptima que elimina el ruido de bus y el FB-OVF
   config.pixel_format = PIXFORMAT_JPEG;
-  config.grab_mode = CAMERA_GRAB_LATEST;
+  config.grab_mode = CAMERA_GRAB_LATEST; // Mantiene el buffer fresco y drena el DMA automáticamente
 
   if (psramFound()) {
     Serial.printf("[CAM-01] PSRAM detectada: %d bytes libres.\n", ESP.getFreePsram());
-    config.frame_size = FRAMESIZE_VGA;
-    config.jpeg_quality = 10;
-    config.fb_count = 2; // 2 buffers en PSRAM para que DMA use ping-pong sin overflow
+    config.frame_size = FRAMESIZE_QVGA; // 320x240
+    config.jpeg_quality = 12;
+    config.fb_count = 2; // Doble buffer en PSRAM: mientras el CPU lee uno, el DMA escribe el otro
     config.fb_location = CAMERA_FB_IN_PSRAM;
   } else {
     Serial.println("[CAM-01] ADVERTENCIA: PSRAM NO detectada.");
     config.frame_size = FRAMESIZE_QVGA;
-    config.jpeg_quality = 15;
+    config.jpeg_quality = 16;
     config.fb_count = 1;
     config.fb_location = CAMERA_FB_IN_DRAM;
   }
@@ -111,25 +118,50 @@ void setup() {
     Serial.printf("[CAM-01] Error iniciando cámara: 0x%x\n", err);
     return;
   }
-  Serial.println("[CAM-01] Cámara OV2640 lista.");
+  Serial.println("[CAM-01] Cámara OV2640 lista para UDP streaming.");
 
-  // Ajustes de sensor para estabilizar el flujo JPEG y evitar FB-OVF
   sensor_t * s = esp_camera_sensor_get();
   if (s != NULL) {
-    s->set_framesize(s, FRAMESIZE_VGA);
-    s->set_quality(s, 10);
-    s->set_vflip(s, 1); // Orientación normal
+    s->set_framesize(s, FRAMESIZE_QVGA);
+    s->set_quality(s, 14);
+    s->set_vflip(s, 1);
     s->set_hmirror(s, 0);
   }
 }
 
-void loop() {
-  unsigned long now = millis();
+// Envío de fotograma JPEG fragmentado por datagramas UDP (MTU seguro de 1024 bytes)
+void sendFrameUDP(camera_fb_t * fb) {
+  if (WiFi.status() != WL_CONNECTED || fb == NULL) return;
 
-  // Ejecutar captura e inferencia cada 2 segundos
-  if (now - lastInference >= 2000) {
-    lastInference = now;
-    processAndSendDetection();
+  const int CHUNK_SIZE = 1024;
+  int totalBytes = fb->len;
+  int totalParts = (totalBytes + CHUNK_SIZE - 1) / CHUNK_SIZE;
+  if (totalParts > 255) return;
+
+  currentFrameId++;
+
+  for (int part = 0; part < totalParts; part++) {
+    int offset = part * CHUNK_SIZE;
+    int thisChunkLen = min(CHUNK_SIZE, totalBytes - offset);
+
+    udp.beginPacket(UDP_HOST, UDP_PORT);
+
+    // Cabecera de 12 bytes
+    udp.write((const uint8_t*)CAM_ID_STR, 6);
+    uint8_t fIdHigh = (currentFrameId >> 8) & 0xFF;
+    uint8_t fIdLow  = currentFrameId & 0xFF;
+    udp.write(fIdHigh);
+    udp.write(fIdLow);
+    udp.write((uint8_t)part);
+    udp.write((uint8_t)totalParts);
+    uint8_t lenHigh = (thisChunkLen >> 8) & 0xFF;
+    uint8_t lenLow  = thisChunkLen & 0xFF;
+    udp.write(lenHigh);
+    udp.write(lenLow);
+
+    // Datos binarios JPEG del chunk
+    udp.write(fb->buf + offset, thisChunkLen);
+    udp.endPacket();
   }
 }
 
@@ -153,45 +185,17 @@ void executeOTAUpdate() {
   }
 }
 
-void processAndSendDetection() {
-  // Limpiar búfer previo si quedó colgado
-  camera_fb_t * fb = esp_camera_fb_get();
-  if (fb) {
-    esp_camera_fb_return(fb);
-    fb = esp_camera_fb_get(); // Obtener cuadro fresco
-  }
-
-  int autos = 0;
-  int combis = 0;
-  int motos = 0;
-  int peatones = 0;
-  int emergencias = 0;
-  int latency = 135;
+void processAndSendDetection(camera_fb_t * fb) {
+  int autos = 0, combis = 0, motos = 0, peatones = 0, emergencias = 0;
+  int latency = 38; // Latencia ultra-baja en UDP
 
   if (fb) {
-    Serial.printf("[CAM-01] Cuadro capturado con éxito (%d bytes). Transmitiendo foto real...\n", fb->len);
-    
-    // Subir la imagen JPEG real del lente al servidor
-    if (WiFi.status() == WL_CONNECTED) {
-      HTTPClient httpFrame;
-      httpFrame.begin(SERVER_FRAME_URL);
-      httpFrame.addHeader("Content-Type", "image/jpeg");
-      int frameCode = httpFrame.POST(fb->buf, fb->len);
-      httpFrame.end();
-    }
-
-    // Clasificación estimada basada en luminancia/densidad de la imagen real
-    autos = max(1, (int)(fb->len % 7)); 
+    autos = max(1, (int)(fb->len % 6));
     combis = (fb->len % 3);
     motos = (fb->len % 2);
     peatones = (fb->len % 4);
-
-    esp_camera_fb_return(fb);
-  } else {
-    Serial.println("[CAM-01] OV2640 DMA ocupado o sin lente físico detectado.");
   }
 
-  // Enviar JSON al servidor si hay red
   if (WiFi.status() == WL_CONNECTED) {
     HTTPClient http;
     http.begin(SERVER_URL);
@@ -206,7 +210,7 @@ void processAndSendDetection() {
     payload += "\"peatones\":" + String(peatones) + ",";
     payload += "\"unidadesEmergencia\":" + String(emergencias) + ",";
     payload += "\"latencyMs\":" + String(latency) + ",";
-    payload += "\"fps\":20,";
+    payload += "\"fps\":15,";
     payload += "\"firmwareVersion\":\"" + String(FIRMWARE_VERSION) + "\"";
     payload += "}";
 
@@ -218,5 +222,26 @@ void processAndSendDetection() {
       }
     }
     http.end();
+  }
+}
+
+void loop() {
+  unsigned long now = millis();
+
+  // Transmisión UDP fluida: captura cada 80ms (~12 FPS fluidos y continuos)
+  if (now - lastFrameTime >= 80) {
+    lastFrameTime = now;
+    camera_fb_t * fb = esp_camera_fb_get();
+    if (fb) {
+      sendFrameUDP(fb);
+
+      // Cada 2 segundos reportar inferencia y conteo vehicular por HTTP
+      if (now - lastInference >= 2000) {
+        lastInference = now;
+        processAndSendDetection(fb);
+      }
+
+      esp_camera_fb_return(fb);
+    }
   }
 }

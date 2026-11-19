@@ -14,18 +14,21 @@
     cams = D.service.getCameras().map(c => Object.assign(c, { i: VS.byId(c.int) }));
   }
 
-  /* Renderizado de video/foto REAL capturada por el lente del ESP32-CAM */
+  /* Renderizado de video REAL continuo por MJPEG Stream (alimentado por UDP en VPS) */
   function scene(c) {
     if (c.status === 'Sin señal') {
       return `<div class="cam-feed-placeholder offline">
         <svg viewBox="0 0 320 180" role="img" aria-label="Sin señal"><rect width="320" height="180" fill="#0a0c10"/><text x="160" y="94" text-anchor="middle" fill="#929BA8" font-size="13" font-family="Inter,sans-serif">CÁMARA FÍSICA DESCONECTADA</text></svg>
       </div>`;
     }
-    // Imagen real capturada por el lente del ESP32-CAM vía HTTP
-    const liveUrl = `/api/v1/realtime/cam/${c.id}/live.jpg?t=${Date.now()}`;
+    // Stream de video continuo de ultra baja latencia
+    const streamUrl = `/api/v1/realtime/cam/${c.id}/stream`;
     return `<div class="cam-feed-container" style="position:relative;width:100%;height:180px;background:#05070a;overflow:hidden;border-radius:8px;">
-      <img src="${liveUrl}" alt="Transmisión real ${esc(c.id)}" style="width:100%;height:100%;object-fit:cover;" onerror="this.onerror=null;this.parentElement.innerHTML='<div style=\\\'height:100%;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:12px;\\\'>Esperando fotograma del lente OV2640...</div>';">
-      <div style="position:absolute;bottom:8px;left:8px;background:rgba(0,0,0,0.7);padding:2px 8px;border-radius:4px;font-size:11px;color:#4ade80;font-weight:600;">EN DIRECTO (LENTE FÍSICO)</div>
+      <img src="${streamUrl}" alt="Video en vivo ${esc(c.id)}" style="width:100%;height:100%;object-fit:cover;" onerror="this.onerror=null;this.src='/api/v1/realtime/cam/${c.id}/live.jpg?t='+Date.now();">
+      <div style="position:absolute;bottom:8px;left:8px;background:rgba(0,0,0,0.7);padding:2px 8px;border-radius:4px;font-size:11px;color:#4ade80;font-weight:600;display:flex;align-items:center;gap:4px;">
+        <span style="display:inline-block;width:6px;height:6px;background:#22c55e;border-radius:50%;animation:pulse 1.5s infinite;"></span>
+        UDP STREAM EN DIRECTO
+      </div>
     </div>`;
   }
 

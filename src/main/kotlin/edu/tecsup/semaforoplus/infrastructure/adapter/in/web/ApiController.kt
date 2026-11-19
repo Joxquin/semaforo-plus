@@ -41,7 +41,8 @@ class ApiController(
     private val getIncidentsUseCase: GetIncidentsUseCase,
     private val getTelemetryUseCase: GetTelemetryUseCase,
     private val getProjectInfoUseCase: GetProjectInfoUseCase,
-    private val getRealtimeNodeUseCase: GetRealtimeNodeUseCase
+    private val getRealtimeNodeUseCase: GetRealtimeNodeUseCase,
+    private val udpVideoReceiver: edu.tecsup.semaforoplus.infrastructure.adapter.`in`.iot.UdpVideoReceiver
 ) {
 
     @GetMapping("/info")
@@ -239,7 +240,7 @@ class ApiController(
 
     @GetMapping("/realtime/cam/{camId}/live.jpg")
     fun getCameraLiveFrame(@PathVariable camId: String): ResponseEntity<ByteArray> {
-        val bytes = latestCameraFrames[camId]
+        val bytes = udpVideoReceiver.latestFrames[camId] ?: latestCameraFrames[camId]
         return if (bytes != null && bytes.isNotEmpty()) {
             ResponseEntity.ok()
                 .contentType(org.springframework.http.MediaType.IMAGE_JPEG)
@@ -247,6 +248,40 @@ class ApiController(
                 .body(bytes)
         } else {
             ResponseEntity.notFound().build()
+        }
+    }
+
+    @GetMapping("/realtime/cam/{camId}/stream")
+    fun getCameraMjpegStream(
+        @PathVariable camId: String,
+        response: jakarta.servlet.http.HttpServletResponse
+    ) {
+        response.contentType = "multipart/x-mixed-replace; boundary=--frame"
+        response.setHeader("Cache-Control", "no-cache, private")
+        response.setHeader("Pragma", "no-cache")
+
+        val output = response.outputStream
+        var lastSentTimestamp = 0L
+
+        try {
+            while (true) {
+                val bytes = udpVideoReceiver.latestFrames[camId] ?: latestCameraFrames[camId]
+                val ts = udpVideoReceiver.latestTimestamps[camId] ?: latestFrameTimestamps[camId] ?: 0L
+
+                if (bytes != null && bytes.isNotEmpty() && ts != lastSentTimestamp) {
+                    lastSentTimestamp = ts
+                    output.print("--frame\r\n")
+                    output.print("Content-Type: image/jpeg\r\n")
+                    output.print("Content-Length: " + bytes.size + "\r\n\r\n")
+                    output.write(bytes)
+                    output.print("\r\n")
+                    output.flush()
+                }
+
+                Thread.sleep(40) // ~25 FPS máximo
+            }
+        } catch (_: java.io.IOException) {
+            // El cliente cerró la pestaña o vista
         }
     }
 

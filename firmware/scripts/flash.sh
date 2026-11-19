@@ -73,13 +73,13 @@ case "$OPTION" in
         ;;
     2)
         SKETCH_PATH="$FIRMWARE_DIR/esp32_cam_norte/esp32_cam_norte.ino"
-        # ESP32 WROVER Module con PSRAM habilitada y velocidad QIO
-        FQBN="esp32:esp32:esp32wrover:PartitionScheme=huge_app,FlashMode=qio,PSRAM=enabled"
+        # ESP32 Wrover Module con partición min_spiffs para OTA
+        FQBN="esp32:esp32:esp32wrover:PartitionScheme=min_spiffs,FlashMode=qio"
         TARGET_NAME="ESP32-CAM Norte (Wrover con PSRAM)"
         ;;
     3)
         SKETCH_PATH="$FIRMWARE_DIR/esp32_cam_este/esp32_cam_este.ino"
-        FQBN="esp32:esp32:esp32wrover:PartitionScheme=huge_app,FlashMode=qio,PSRAM=enabled"
+        FQBN="esp32:esp32:esp32wrover:PartitionScheme=min_spiffs,FlashMode=qio"
         TARGET_NAME="ESP32-CAM Este (Wrover con PSRAM)"
         ;;
     4)

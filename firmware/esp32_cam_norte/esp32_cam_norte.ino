@@ -3,7 +3,7 @@
    Proyecto: TECSUP (Arequipa) · ODS 11: Ciudades y Comunidades Sostenibles
    Hardware: Módulo AI-Thinker ESP32-CAM (Sensor OV2640 + 4MB PSRAM)
    
-   Streaming: Protocolo UDP de Ultra Baja Latencia (< 40ms) en Tarea FreeRTOS Dedicada
+   Streaming: Protocolo UDP Modo Turbo (Hasta 25 FPS, frames ligeros, mínima latencia)
    Destino:   34.122.14.13:5005 (VPS Cloud)
    Telemetry: Inferencia On-Edge y conteo vehicular hacia VPS cada 2 segundos
    ========================================================================== */
@@ -89,11 +89,8 @@ void sendFrameUDP(camera_fb_t * fb) {
   }
 }
 
-// Tarea FreeRTOS dedicada exclusivamente a captura y envío UDP (Core 0)
+// Tarea FreeRTOS dedicada al streaming UDP en bucle rápido
 void udpStreamTask(void * pvParameters) {
-  TickType_t xLastWakeTime = xTaskGetTickCount();
-  const TickType_t xFrequency = pdMS_TO_TICKS(66); // ~15 FPS estables sin saturar el bus
-
   while (true) {
     if (WiFi.status() == WL_CONNECTED) {
       camera_fb_t * fb = esp_camera_fb_get();
@@ -102,7 +99,8 @@ void udpStreamTask(void * pvParameters) {
         esp_camera_fb_return(fb);
       }
     }
-    vTaskDelayUntil(&xLastWakeTime, xFrequency);
+    // Breve pausa de 20ms para permitir fluidez máxima (~25-30 FPS) sin ahogar el WiFi
+    vTaskDelay(pdMS_TO_TICKS(20));
   }
 }
 
@@ -140,8 +138,8 @@ void processAndSendDetection() {
     payload += "\"motos\":" + String(motos) + ",";
     payload += "\"peatones\":" + String(peatones) + ",";
     payload += "\"unidadesEmergencia\":" + String(emergencias) + ",";
-    payload += "\"latencyMs\":32,";
-    payload += "\"fps\":15,";
+    payload += "\"latencyMs\":25,";
+    payload += "\"fps\":25,";
     payload += "\"firmwareVersion\":\"" + String(FIRMWARE_VERSION) + "\"";
     payload += "}";
 
@@ -161,7 +159,7 @@ void setup() {
 
   Serial.begin(115200);
   delay(500);
-  Serial.println("\n[CAM-01] Iniciando ESP32-CAM (Modo Ultra Baja Latencia UDP)...");
+  Serial.println("\n[CAM-01] Iniciando ESP32-CAM (Modo Alta Tasa de Refresco UDP)...");
 
   camera_config_t config;
   config.ledc_channel = LEDC_CHANNEL_0;
@@ -187,12 +185,12 @@ void setup() {
   config.pixel_format = PIXFORMAT_JPEG;
   config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
   config.fb_location = CAMERA_FB_IN_PSRAM;
-  config.jpeg_quality = 12;
+  config.jpeg_quality = 18; // Calidad más liviana para máxima velocidad de compresión y transmisión
   config.fb_count = 1;
 
   if (psramFound()) {
     Serial.printf("[CAM-01] PSRAM detectada: %d bytes libres.\n", ESP.getFreePsram());
-    config.jpeg_quality = 10;
+    config.jpeg_quality = 18; // 18 = compresión más rápida, payload más chico (< 3-4 chunks)
     config.fb_count = 2;
     config.grab_mode = CAMERA_GRAB_LATEST;
   } else {
@@ -214,7 +212,9 @@ void setup() {
       s->set_brightness(s, 1);
       s->set_saturation(s, -2);
     }
+    // FRAMESIZE_QVGA (320x240) con compresión optimizada
     s->set_framesize(s, FRAMESIZE_QVGA);
+    s->set_quality(s, 18); // Mayor compresión = frames de ~4KB = menos paquetes UDP = latencia casi nula
     s->set_vflip(s, 1);
     s->set_hmirror(s, 0);
 

@@ -17,10 +17,10 @@
 #include <HTTPUpdate.h>
 
 // ---------- CONFIGURACIÓN DE RED Y VERSIÓN ----------
-const char* FIRMWARE_VERSION = "2.4.1";
+const char* FIRMWARE_VERSION = "2.5.1";
 const char* DEVICE_TYPE      = "ESP32-CAM-ESTE";
-const char* WIFI_SSID        = "TECSUP_LAB_IOT";       // Cambiar por tu red WiFi
-const char* WIFI_PASSWORD    = "TuPasswordSeguro";     // Cambiar por tu clave WiFi
+const char* WIFI_SSID        = "S24";
+const char* WIFI_PASSWORD    = "122344566";
 
 // URL Base del servidor VPS (Conexión pública por HTTP puerto 80)
 const String SERVER_HOST     = "http://34.122.14.13"; // O bien "http://faccisa.shop"

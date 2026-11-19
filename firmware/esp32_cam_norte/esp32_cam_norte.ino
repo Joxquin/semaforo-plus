@@ -247,6 +247,25 @@ void setup() {
     s->set_framesize(s, FRAMESIZE_QVGA);
     s->set_vflip(s, 1);
     s->set_hmirror(s, 0);
+
+    // Calibración de color y balance de blancos para eliminar el tinte verde
+    s->set_whitebal(s, 1);       // 1 = Habilitar White Balance
+    s->set_awb_gain(s, 1);       // 1 = Habilitar ganancia AWB
+    s->set_wb_mode(s, 0);        // 0 = Auto WB
+    s->set_brightness(s, 0);     // 0 = Normal (-2 a 2)
+    s->set_contrast(s, 0);       // 0 = Normal (-2 a 2)
+    s->set_saturation(s, 0);     // 0 = Normal (-2 a 2)
+    s->set_special_effect(s, 0); // 0 = Sin efectos
+    s->set_gain_ctrl(s, 1);      // 1 = Auto Gain Control
+    s->set_exposure_ctrl(s, 1);  // 1 = Auto Exposure Control
+    s->set_lenc(s, 0);           // 0 = Desactivar corrección de lente para evitar artefactos de color
+  }
+
+  // Descartar los primeros 10 fotogramas para que el sensor termine de calibrar el color y exposición
+  for (int i = 0; i < 10; i++) {
+    camera_fb_t * dummy = esp_camera_fb_get();
+    if (dummy) esp_camera_fb_return(dummy);
+    delay(30);
   }
 
   // WiFi con ahorro de energía desactivado

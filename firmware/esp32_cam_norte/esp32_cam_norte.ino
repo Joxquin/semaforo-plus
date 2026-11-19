@@ -64,7 +64,7 @@ void setup() {
   delay(500);
   Serial.println("\n[CAM-01] Iniciando ESP32-CAM (Base MB)...");
 
-  // Configuración del sensor OV2640 (SE INICIALIZA PRIMERO CON ALIMENTACIÓN LIMPIA)
+  // Configuración del sensor idéntica a la que demostró cero errores en CameraWebServer
   camera_config_t config;
   config.ledc_channel = LEDC_CHANNEL_0;
   config.ledc_timer = LEDC_TIMER_0;
@@ -84,21 +84,22 @@ void setup() {
   config.pin_sccb_scl = SIOC_GPIO_NUM;
   config.pin_pwdn = PWDN_GPIO_NUM;
   config.pin_reset = RESET_GPIO_NUM;
-  config.xclk_freq_hz = 10000000; // 10MHz para señal limpia y sin FB-OVF
+  config.xclk_freq_hz = 20000000;
+  config.frame_size = FRAMESIZE_UXGA;
   config.pixel_format = PIXFORMAT_JPEG;
-  config.grab_mode = CAMERA_GRAB_LATEST;
+  config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
+  config.fb_location = CAMERA_FB_IN_PSRAM;
+  config.jpeg_quality = 12;
+  config.fb_count = 1;
 
   if (psramFound()) {
     Serial.printf("[CAM-01] PSRAM detectada: %d bytes libres.\n", ESP.getFreePsram());
-    config.frame_size = FRAMESIZE_QVGA; // 320x240
-    config.jpeg_quality = 12;
-    config.fb_count = 2; // Doble buffer en PSRAM
-    config.fb_location = CAMERA_FB_IN_PSRAM;
+    config.jpeg_quality = 10;
+    config.fb_count = 2;
+    config.grab_mode = CAMERA_GRAB_LATEST;
   } else {
     Serial.println("[CAM-01] ADVERTENCIA: PSRAM NO detectada.");
-    config.frame_size = FRAMESIZE_QVGA;
-    config.jpeg_quality = 16;
-    config.fb_count = 1;
+    config.frame_size = FRAMESIZE_SVGA;
     config.fb_location = CAMERA_FB_IN_DRAM;
   }
 
@@ -111,23 +112,28 @@ void setup() {
 
   sensor_t * s = esp_camera_sensor_get();
   if (s != NULL) {
-    s->set_framesize(s, FRAMESIZE_QVGA);
-    s->set_quality(s, 14);
+    if (s->id.PID == OV3660_PID) {
+      s->set_vflip(s, 1);
+      s->set_brightness(s, 1);
+      s->set_saturation(s, -2);
+    }
+    s->set_framesize(s, FRAMESIZE_QVGA); // Reduce a QVGA después de asignar buffers grandes
     s->set_vflip(s, 1);
     s->set_hmirror(s, 0);
   }
 
-  // Descartar los primeros 3 fotogramas de calentamiento del sensor
+  // Descartar fotogramas iniciales
   for (int i = 0; i < 3; i++) {
     camera_fb_t * warm_fb = esp_camera_fb_get();
     if (warm_fb) esp_camera_fb_return(warm_fb);
     delay(50);
   }
 
-  // AHORA QUE EL SENSOR ESTÁ CALIBRADO, ENCENDEMOS EL WIFI
+  // Conexión WiFi con ahorro de energía desactivado (crucial para evitar latencias DMA)
   Serial.println("[CAM-01] Conectando a red WiFi...");
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  WiFi.setSleep(false);
   int retries = 0;
   while (WiFi.status() != WL_CONNECTED && retries < 25) {
     delay(500);

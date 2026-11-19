@@ -73,17 +73,17 @@ void setup() {
   config.pin_sccb_scl = SIOC_GPIO_NUM;
   config.pin_pwdn = PWDN_GPIO_NUM;
   config.pin_reset = RESET_GPIO_NUM;
-  config.xclk_freq_hz = 10000000; // 10MHz reduce el jitter y evita overflow (FB-OVF)
+  config.xclk_freq_hz = 20000000;
   config.pixel_format = PIXFORMAT_JPEG;
-  config.grab_mode = CAMERA_GRAB_LATEST; // Siempre toma el cuadro más reciente
+  config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
 
   if (psramFound()) {
-    config.frame_size = FRAMESIZE_SVGA; // 800x600 estable
+    config.frame_size = FRAMESIZE_VGA; // 640x480 muy ligero y estable
     config.jpeg_quality = 12;
-    config.fb_count = 2;
+    config.fb_count = 1; // 1 solo búfer evita el fallo de sincronía del DMA
     config.fb_location = CAMERA_FB_IN_PSRAM;
   } else {
-    config.frame_size = FRAMESIZE_VGA;  // 640x480
+    config.frame_size = FRAMESIZE_CIF;  // 400x296
     config.jpeg_quality = 14;
     config.fb_count = 1;
     config.fb_location = CAMERA_FB_IN_DRAM;

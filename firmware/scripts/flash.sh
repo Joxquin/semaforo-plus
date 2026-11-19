@@ -59,8 +59,9 @@ echo -e "\n${BLUE}[2/4] Selecciona el firmware a compilar y flashear:${NC}"
 echo "1) ESP32 Central Controller (Cerebro del Cruce - NodeMCU WROOM)"
 echo "2) ESP32-CAM Norte (Av. Ejército N-S - AI-Thinker)"
 echo "3) ESP32-CAM Este (Calle Los Arces E-O - AI-Thinker)"
-echo "4) Solo abrir Monitor Serial en ${SELECTED_PORT}"
-read -p "Opción [1-4]: " OPTION
+echo "4) [TEST OFICIAL] CameraWebServer de Espressif (Para Probar Lente)"
+echo "5) Solo abrir Monitor Serial en ${SELECTED_PORT}"
+read -p "Opción [1-5]: " OPTION
 
 FQBN=""
 SKETCH_PATH=""
@@ -83,6 +84,11 @@ case "$OPTION" in
         TARGET_NAME="ESP32-CAM Este (Wrover con PSRAM)"
         ;;
     4)
+        SKETCH_PATH="$FIRMWARE_DIR/test_camera_web_server/test_camera_web_server.ino"
+        FQBN="esp32:esp32:esp32wrover:PartitionScheme=huge_app,FlashMode=qio"
+        TARGET_NAME="CameraWebServer Oficial Espressif"
+        ;;
+    5)
         echo -e "\n${GREEN}[INFO] Abriendo monitor serial a 115200 baudios (Ctrl+C para salir)...${NC}"
         python3 -m serial.tools.miniterm "$SELECTED_PORT" 115200 --raw
         exit 0

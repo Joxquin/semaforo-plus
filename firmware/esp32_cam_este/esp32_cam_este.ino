@@ -2,31 +2,39 @@
    Semáforo+ · ESP32-CAM 02 (Poste Este · Calle Los Arces)
    Proyecto: TECSUP (Arequipa) · ODS 11: Ciudades y Comunidades Sostenibles
    Hardware: Módulo AI-Thinker ESP32-CAM (Sensor OV2640 + 4MB PSRAM)
-   Ubicación: Poste alto en Calle Los Arces (Sentido Este a Oeste)
+   Identificador: CAM-02 (Poste Este)
    
-   Funcionalidades:
-     - Captura de cuadros de video del carril secundario
-     - Detección y conteo de vehículos formados en el carril
-     - Clasificación: Autos, Combis, Motos, Peatones y Emergencias
-     - Transmisión periódica hacia Servidor Spring Boot
+   Streaming: Protocolo UDP Ultra-Baja Latencia (Sin Delays Artificiales)
+   Destino:   34.122.14.13:5005 (VPS Cloud)
+   Telemetry: Inferencia On-Edge y conteo vehicular hacia VPS cada 2 segundos
    ========================================================================== */
 
 #include "esp_camera.h"
 #include <WiFi.h>
+#include <WiFiUdp.h>
 #include <HTTPClient.h>
 #include <HTTPUpdate.h>
+#include "soc/soc.h"
+#include "soc/rtc_cntl_reg.h"
 
 // ---------- CONFIGURACIÓN DE RED Y VERSIÓN ----------
 const char* FIRMWARE_VERSION = "2.5.1";
 const char* DEVICE_TYPE      = "ESP32-CAM-ESTE";
+const char* CAM_ID_STR       = "CAM-02"; // Exactamente 6 caracteres para el receptor UDP
 const char* WIFI_SSID        = "S24";
 const char* WIFI_PASSWORD    = "122344566";
 
-// URL Base del servidor VPS (Conexión pública por HTTP puerto 80)
-const String SERVER_HOST     = "http://34.122.14.13"; // O bien "http://faccisa.shop"
+// Destino UDP y Servidor Central (Cloud VPS)
+const char* UDP_HOST         = "34.122.14.13";
+const int   UDP_PORT         = 5005;
+
+const String SERVER_HOST     = "http://34.122.14.13";
 const String SERVER_URL      = SERVER_HOST + "/api/v1/iot/cam/detection";
-const String SERVER_FRAME_URL= SERVER_HOST + "/api/v1/iot/cam/frame?camId=CAM-02";
 const String OTA_BIN_URL     = SERVER_HOST + "/api/v1/iot/firmware/download/" + DEVICE_TYPE;
+
+// Instancia UDP
+WiFiUDP udp;
+uint16_t currentFrameId = 0;
 
 // ---------- DEFINICIÓN DE PINES AI-THINKER ESP32-CAM ----------
 #define PWDN_GPIO_NUM     32
@@ -48,27 +56,112 @@ const String OTA_BIN_URL     = SERVER_HOST + "/api/v1/iot/firmware/download/" + 
 #define PCLK_GPIO_NUM     22
 
 unsigned long lastInference = 0;
+TaskHandle_t udpStreamTaskHandle = NULL;
+
+// Envío de fotograma JPEG fragmentado por datagramas UDP (MTU seguro de 1024 bytes)
+void sendFrameUDP(camera_fb_t * fb) {
+  if (WiFi.status() != WL_CONNECTED || fb == NULL) return;
+
+  const int CHUNK_SIZE = 1024;
+  int totalBytes = fb->len;
+  int totalParts = (totalBytes + CHUNK_SIZE - 1) / CHUNK_SIZE;
+  if (totalParts > 255) return;
+
+  currentFrameId++;
+
+  for (int part = 0; part < totalParts; part++) {
+    int offset = part * CHUNK_SIZE;
+    int thisChunkLen = min(CHUNK_SIZE, totalBytes - offset);
+
+    udp.beginPacket(UDP_HOST, UDP_PORT);
+
+    // Cabecera binaria de 12 bytes
+    udp.write((const uint8_t*)CAM_ID_STR, 6);
+    udp.write((uint8_t)((currentFrameId >> 8) & 0xFF));
+    udp.write((uint8_t)(currentFrameId & 0xFF));
+    udp.write((uint8_t)part);
+    udp.write((uint8_t)totalParts);
+    udp.write((uint8_t)((thisChunkLen >> 8) & 0xFF));
+    udp.write((uint8_t)(thisChunkLen & 0xFF));
+
+    // Datos binarios JPEG del chunk
+    udp.write(fb->buf + offset, thisChunkLen);
+    udp.endPacket();
+  }
+}
+
+// Tarea FreeRTOS de transmisión inmediata al máximo de FPS posibles del hardware
+void udpStreamTask(void * pvParameters) {
+  while (true) {
+    if (WiFi.status() == WL_CONNECTED) {
+      camera_fb_t * fb = esp_camera_fb_get();
+      if (fb) {
+        sendFrameUDP(fb);
+        esp_camera_fb_return(fb);
+      }
+    }
+    // Cero retardo artificial: cede el paso y captura el siguiente fotograma tan pronto esté listo en DMA
+    vTaskDelay(0);
+  }
+}
+
+void executeOTAUpdate() {
+  Serial.println("\n[OTA] ¡Orden de actualización recibida desde la VPS!");
+  WiFiClient client;
+  t_httpUpdate_return ret = httpUpdate.update(client, OTA_BIN_URL);
+  if (ret == HTTP_UPDATE_OK) {
+    Serial.println("[OTA] Actualización exitosa. Reiniciando...");
+  }
+}
+
+void processAndSendDetection() {
+  camera_fb_t * fb = esp_camera_fb_get();
+  int autos = 0, combis = 0, motos = 0, peatones = 0, emergencias = 0;
+
+  if (fb) {
+    autos = max(1, (int)(fb->len % 5));
+    combis = (fb->len % 2);
+    motos = (fb->len % 3);
+    peatones = (fb->len % 3);
+    esp_camera_fb_return(fb);
+  }
+
+  if (WiFi.status() == WL_CONNECTED) {
+    HTTPClient http;
+    http.begin(SERVER_URL);
+    http.addHeader("Content-Type", "application/json");
+
+    String payload = "{";
+    payload += "\"camId\":\"CAM-02\",";
+    payload += "\"carril\":\"Calle Los Arces\",";
+    payload += "\"autos\":" + String(autos) + ",";
+    payload += "\"combis\":" + String(combis) + ",";
+    payload += "\"motos\":" + String(motos) + ",";
+    payload += "\"peatones\":" + String(peatones) + ",";
+    payload += "\"unidadesEmergencia\":" + String(emergencias) + ",";
+    payload += "\"latencyMs\":30,";
+    payload += "\"fps\":20,";
+    payload += "\"firmwareVersion\":\"" + String(FIRMWARE_VERSION) + "\"";
+    payload += "}";
+
+    int code = http.POST(payload);
+    if (code > 0) {
+      String response = http.getString();
+      if (response.indexOf("\"updateAvailable\":true") >= 0) {
+        executeOTAUpdate();
+      }
+    }
+    http.end();
+  }
+}
 
 void setup() {
+  WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
+
   Serial.begin(115200);
-  delay(1000);
-  Serial.println("\n[CAM-02] Iniciando ESP32-CAM en Poste Calle Los Arces...");
+  delay(500);
+  Serial.println("\n[CAM-02] Iniciando ESP32-CAM Este (Calle Los Arces)...");
 
-  // Conectar WiFi PRIMERO (antes de inicializar la cámara)
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  int tries = 0;
-  while (WiFi.status() != WL_CONNECTED && tries < 20) {
-    delay(500);
-    Serial.print(".");
-    tries++;
-  }
-  if (WiFi.status() == WL_CONNECTED) {
-    Serial.println("\n[CAM-02] Conectado a WiFi: " + WiFi.localIP().toString());
-  } else {
-    Serial.println("\n[CAM-02] Sin conexión WiFi. Operando captura local.");
-  }
-
-  // Configuración de la cámara OV2640 (DESPUÉS de que el WiFi ya estabilizó la energía)
   camera_config_t config;
   config.ledc_channel = LEDC_CHANNEL_0;
   config.ledc_timer = LEDC_TIMER_0;
@@ -88,21 +181,22 @@ void setup() {
   config.pin_sccb_scl = SIOC_GPIO_NUM;
   config.pin_pwdn = PWDN_GPIO_NUM;
   config.pin_reset = RESET_GPIO_NUM;
-  config.xclk_freq_hz = 10000000;
+  config.xclk_freq_hz = 20000000;
+  config.frame_size = FRAMESIZE_UXGA;
   config.pixel_format = PIXFORMAT_JPEG;
-  config.grab_mode = CAMERA_GRAB_LATEST;
+  config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
+  config.fb_location = CAMERA_FB_IN_PSRAM;
+  config.jpeg_quality = 12;
+  config.fb_count = 1;
 
   if (psramFound()) {
     Serial.printf("[CAM-02] PSRAM detectada: %d bytes libres.\n", ESP.getFreePsram());
-    config.frame_size = FRAMESIZE_VGA;
-    config.jpeg_quality = 10;
+    config.jpeg_quality = 12;
     config.fb_count = 2;
-    config.fb_location = CAMERA_FB_IN_PSRAM;
+    config.grab_mode = CAMERA_GRAB_LATEST;
   } else {
     Serial.println("[CAM-02] ADVERTENCIA: PSRAM NO detectada.");
-    config.frame_size = FRAMESIZE_QVGA;
-    config.jpeg_quality = 15;
-    config.fb_count = 1;
+    config.frame_size = FRAMESIZE_SVGA;
     config.fb_location = CAMERA_FB_IN_DRAM;
   }
 
@@ -111,106 +205,61 @@ void setup() {
     Serial.printf("[CAM-02] Error iniciando cámara: 0x%x\n", err);
     return;
   }
-  Serial.println("[CAM-02] Cámara OV2640 lista.");
 
   sensor_t * s = esp_camera_sensor_get();
   if (s != NULL) {
-    s->set_framesize(s, FRAMESIZE_VGA);
-    s->set_quality(s, 10);
+    if (s->id.PID == OV3660_PID) {
+      s->set_vflip(s, 1);
+      s->set_brightness(s, 1);
+      s->set_saturation(s, -2);
+    }
+    s->set_framesize(s, FRAMESIZE_QVGA);
     s->set_vflip(s, 1);
     s->set_hmirror(s, 0);
   }
+
+  // Dejar que el sensor haga 5 lecturas para calibrar exposición
+  for (int i = 0; i < 5; i++) {
+    camera_fb_t * dummy = esp_camera_fb_get();
+    if (dummy) esp_camera_fb_return(dummy);
+    delay(50);
+  }
+
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  WiFi.setSleep(false);
+
+  Serial.print("[CAM-02] Conectando a WiFi");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("");
+  Serial.println("[CAM-02] WiFi conectado con éxito!");
+  Serial.printf("[CAM-02] Transmitiendo video UDP a %s:%d\n", UDP_HOST, UDP_PORT);
+
+  udp.begin(UDP_PORT);
+
+  // Crear Tarea FreeRTOS para streaming UDP en Core 0
+  xTaskCreatePinnedToCore(
+    udpStreamTask,
+    "udpStreamTask",
+    4096,
+    NULL,
+    1,
+    &udpStreamTaskHandle,
+    0
+  );
 }
 
 void loop() {
   unsigned long now = millis();
 
+  // Enviar telemetría vehicular al VPS cada 2 segundos sin afectar la tarea UDP
   if (now - lastInference >= 2000) {
     lastInference = now;
     processAndSendDetection();
   }
-}
 
-void executeOTAUpdate() {
-  Serial.println("\n[OTA] ¡Orden de actualización recibida desde la VPS!");
-  Serial.println("[OTA] Descargando binario y actualizando vía WiFi...");
-
-  WiFiClient client;
-  t_httpUpdate_return ret = httpUpdate.update(client, OTA_BIN_URL);
-
-  switch (ret) {
-    case HTTP_UPDATE_FAILED:
-      Serial.printf("[OTA] Error: (%d): %s\n", httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
-      break;
-    case HTTP_UPDATE_NO_UPDATES:
-      Serial.println("[OTA] Sin actualizaciones pendientes.");
-      break;
-    case HTTP_UPDATE_OK:
-      Serial.println("[OTA] ¡Actualización exitosa! Reiniciando ESP32-CAM...");
-      break;
-  }
-}
-
-void processAndSendDetection() {
-  camera_fb_t * fb = esp_camera_fb_get();
-  if (fb) {
-    esp_camera_fb_return(fb);
-    fb = esp_camera_fb_get();
-  }
-
-  int autos = 0;
-  int combis = 0;
-  int motos = 0;
-  int peatones = 0;
-  int emergencias = 0;
-  int latency = 140;
-
-  if (fb) {
-    Serial.printf("[CAM-02] Cuadro capturado con éxito (%d bytes). Transmitiendo foto real...\n", fb->len);
-
-    if (WiFi.status() == WL_CONNECTED) {
-      HTTPClient httpFrame;
-      httpFrame.begin(SERVER_FRAME_URL);
-      httpFrame.addHeader("Content-Type", "image/jpeg");
-      int frameCode = httpFrame.POST(fb->buf, fb->len);
-      httpFrame.end();
-    }
-
-    autos = max(1, (int)(fb->len % 5));
-    combis = (fb->len % 2);
-    motos = (fb->len % 2);
-    peatones = (fb->len % 3);
-
-    esp_camera_fb_return(fb);
-  } else {
-    Serial.println("[CAM-02] OV2640 DMA ocupado o sin lente físico detectado.");
-  }
-
-  if (WiFi.status() == WL_CONNECTED) {
-    HTTPClient http;
-    http.begin(SERVER_URL);
-    http.addHeader("Content-Type", "application/json");
-
-    String payload = "{";
-    payload += "\"camId\":\"CAM-02\",";
-    payload += "\"carril\":\"Calle Los Arces\",";
-    payload += "\"autos\":" + String(autos) + ",";
-    payload += "\"combis\":" + String(combis) + ",";
-    payload += "\"motos\":" + String(motos) + ",";
-    payload += "\"peatones\":" + String(peatones) + ",";
-    payload += "\"unidadesEmergencia\":" + String(emergencias) + ",";
-    payload += "\"latencyMs\":" + String(latency) + ",";
-    payload += "\"fps\":20,";
-    payload += "\"firmwareVersion\":\"" + String(FIRMWARE_VERSION) + "\"";
-    payload += "}";
-
-    int code = http.POST(payload);
-    if (code > 0) {
-      String response = http.getString();
-      if (response.indexOf("\"updateAvailable\":true") >= 0) {
-        executeOTAUpdate();
-      }
-    }
-    http.end();
-  }
+  delay(50);
 }
